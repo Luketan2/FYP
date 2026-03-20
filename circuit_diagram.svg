@@ -1,0 +1,547 @@
+<svg width="1100" height="820" xmlns="http://www.w3.org/2000/svg"
+     font-family="'Courier New', Courier, monospace">
+
+  <!-- ── Background & border ── -->
+  <rect width="1100" height="820" fill="white"/>
+  <rect x="4" y="4" width="1092" height="812" fill="none" stroke="#333" stroke-width="1.5"/>
+
+  <!-- ── Title block ── -->
+  <rect x="4" y="770" width="1092" height="46" fill="none" stroke="#333" stroke-width="1.5"/>
+  <line x1="700" y1="770" x2="700" y2="816" stroke="#333" stroke-width="1"/>
+  <line x1="870" y1="770" x2="870" y2="816" stroke="#333" stroke-width="1"/>
+  <line x1="700" y1="793" x2="870" y2="793" stroke="#333" stroke-width="1"/>
+  <text x="552" y="790" text-anchor="middle" font-size="14" font-weight="bold">Direct Shear Strain Device — Circuit Schematic</text>
+  <text x="552" y="808" text-anchor="middle" font-size="10">ESP32 · DRV8825 · HX711 · Digital Caliper</text>
+  <text x="785" y="785" text-anchor="middle" font-size="9">DRG No.</text>
+  <text x="785" y="809" text-anchor="middle" font-size="10" font-weight="bold">FYP-SCH-001</text>
+  <text x="960" y="785" text-anchor="middle" font-size="9">Rev</text>
+  <text x="960" y="809" text-anchor="middle" font-size="10" font-weight="bold">A</text>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SYMBOL HELPERS — repeated power / gnd shapes
+       ═══════════════════════════════════════════════════════════ -->
+
+  <!-- VCC +5V at (196, 80) pointing UP from pin top -->
+  <!-- +3V3 at (310, 80) pointing up from ESP32 3V3 pin -->
+
+  <!-- ══════════════════════════════════════
+       U1 — ESP32 WROOM-32
+       Box: x=90, y=90, w=210, h=480
+       ══════════════════════════════════════ -->
+  <rect x="90" y="90" width="210" height="480" fill="#f9fff9" stroke="black" stroke-width="1.5"/>
+  <!-- Reference + value -->
+  <text x="195" y="109" text-anchor="middle" font-size="11" font-weight="bold">U1</text>
+  <text x="195" y="124" text-anchor="middle" font-size="10">ESP32-WROOM-32</text>
+  <line x1="90" y1="130" x2="300" y2="130" stroke="black" stroke-width="0.8"/>
+
+  <!-- ── U1 LEFT pins (exit at x=74) ── -->
+  <!-- VIN -->
+  <line x1="74" y1="158" x2="90" y2="158" stroke="black" stroke-width="1.5"/>
+  <text x="94" y="162" font-size="9">VIN</text>
+  <!-- GND -->
+  <line x1="74" y1="198" x2="90" y2="198" stroke="black" stroke-width="1.5"/>
+  <text x="94" y="202" font-size="9">GND</text>
+  <!-- GPIO26 DATA in -->
+  <line x1="74" y1="268" x2="90" y2="268" stroke="black" stroke-width="1.5"/>
+  <text x="94" y="272" font-size="9">GPIO26 ◄</text>
+
+  <!-- ── U1 RIGHT pins (exit at x=316) ── -->
+  <!-- GPIO16 STEP out -->
+  <line x1="300" y1="158" x2="316" y2="158" stroke="black" stroke-width="1.5"/>
+  <text x="296" y="162" text-anchor="end" font-size="9">► GPIO16</text>
+  <!-- GPIO17 DIR out -->
+  <line x1="300" y1="198" x2="316" y2="198" stroke="black" stroke-width="1.5"/>
+  <text x="296" y="202" text-anchor="end" font-size="9">► GPIO17</text>
+  <!-- GPIO27 CLK out -->
+  <line x1="300" y1="248" x2="316" y2="248" stroke="black" stroke-width="1.5"/>
+  <text x="296" y="252" text-anchor="end" font-size="9">► GPIO27</text>
+  <!-- GPIO33 SCK out -->
+  <line x1="300" y1="308" x2="316" y2="308" stroke="black" stroke-width="1.5"/>
+  <text x="296" y="312" text-anchor="end" font-size="9">► GPIO33</text>
+  <!-- GPIO32 DOUT in -->
+  <line x1="300" y1="348" x2="316" y2="348" stroke="black" stroke-width="1.5"/>
+  <text x="296" y="352" text-anchor="end" font-size="9">◄ GPIO32</text>
+  <!-- 3V3 out -->
+  <line x1="300" y1="408" x2="316" y2="408" stroke="black" stroke-width="1.5"/>
+  <text x="296" y="412" text-anchor="end" font-size="9">3V3 out</text>
+  <!-- GND right -->
+  <line x1="300" y1="448" x2="316" y2="448" stroke="black" stroke-width="1.5"/>
+  <text x="296" y="452" text-anchor="end" font-size="9">GND</text>
+  <!-- EN -->
+  <line x1="300" y1="488" x2="316" y2="488" stroke="black" stroke-width="1.5"/>
+  <text x="296" y="492" text-anchor="end" font-size="9">EN</text>
+  <!-- GPIO0 -->
+  <line x1="300" y1="528" x2="316" y2="528" stroke="black" stroke-width="1.5"/>
+  <text x="296" y="532" text-anchor="end" font-size="9">GPIO0</text>
+
+  <!-- ── U1 internal notes ── -->
+  <text x="195" y="160" text-anchor="middle" font-size="8" fill="#555">5V USB supply</text>
+  <text x="195" y="200" text-anchor="middle" font-size="8" fill="#555">digital GND</text>
+  <text x="195" y="252" text-anchor="middle" font-size="8" fill="#555">CLK out</text>
+  <text x="195" y="312" text-anchor="middle" font-size="8" fill="#555">SCK out</text>
+  <text x="195" y="352" text-anchor="middle" font-size="8" fill="#555">DOUT in</text>
+  <text x="195" y="412" text-anchor="middle" font-size="8" fill="#555">250 mA max</text>
+  <text x="195" y="492" text-anchor="middle" font-size="8" fill="#555">pull high to run</text>
+  <text x="195" y="532" text-anchor="middle" font-size="8" fill="#555">float = normal boot</text>
+
+  <!-- ── U1 power symbols ── -->
+  <!-- +5V at VIN left pin (74, 158) -->
+  <line x1="74" y1="158" x2="74" y2="138" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="62" y1="138" x2="86" y2="138" stroke="#cc0000" stroke-width="1.5"/>
+  <text x="74" y="132" text-anchor="middle" font-size="9" fill="#cc0000">+5V_USB</text>
+  <!-- GND at U1 left GND (74, 198) -->
+  <line x1="74" y1="198" x2="74" y2="218" stroke="black" stroke-width="1.5"/>
+  <line x1="62" y1="218" x2="86" y2="218" stroke="black" stroke-width="1.5"/>
+  <line x1="66" y1="223" x2="82" y2="223" stroke="black" stroke-width="1.5"/>
+  <line x1="70" y1="228" x2="78" y2="228" stroke="black" stroke-width="1.5"/>
+  <!-- EN pull-up: line to +3V3, then 10k R, then pin -->
+  <!-- Simplified: note text -->
+  <text x="340" y="492" font-size="8" fill="#555">10kΩ pull-up to 3V3</text>
+  <!-- GPIO0 float note -->
+  <text x="340" y="532" font-size="8" fill="#555">leave floating (boot)</text>
+  <!-- 3V3 power symbol at right 3V3 pin -->
+  <line x1="316" y1="408" x2="336" y2="408" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="336" y1="408" x2="336" y2="388" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="324" y1="388" x2="348" y2="388" stroke="#cc0000" stroke-width="1.5"/>
+  <text x="336" y="382" text-anchor="middle" font-size="9" fill="#cc0000">+3V3</text>
+  <!-- GND at right GND pin (316, 448) -->
+  <line x1="316" y1="448" x2="336" y2="448" stroke="black" stroke-width="1.5"/>
+  <line x1="336" y1="448" x2="336" y2="468" stroke="black" stroke-width="1.5"/>
+  <line x1="324" y1="468" x2="348" y2="468" stroke="black" stroke-width="1.5"/>
+  <line x1="328" y1="473" x2="344" y2="473" stroke="black" stroke-width="1.5"/>
+  <line x1="332" y1="478" x2="340" y2="478" stroke="black" stroke-width="1.5"/>
+
+  <!-- ══════════════════════════════════════
+       Net labels on U1 right pins
+       ══════════════════════════════════════ -->
+  <!-- STEP net label at GPIO16 (316, 158) -->
+  <polygon points="316,150 380,150 390,158 380,166 316,166" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <text x="350" y="162" text-anchor="middle" font-size="9" font-weight="bold" fill="#2e7d32">STEP</text>
+
+  <!-- DIR net label at GPIO17 (316, 198) -->
+  <polygon points="316,190 380,190 390,198 380,206 316,206" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <text x="350" y="202" text-anchor="middle" font-size="9" font-weight="bold" fill="#2e7d32">DIR</text>
+
+  <!-- CLK net label at GPIO27 (316, 248) -->
+  <polygon points="316,240 380,240 390,248 380,256 316,256" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="1"/>
+  <text x="350" y="252" text-anchor="middle" font-size="9" font-weight="bold" fill="#6a1b9a">CLK</text>
+
+  <!-- SCK net label at GPIO33 (316, 308) -->
+  <polygon points="316,300 380,300 390,308 380,316 316,316" fill="#e0f7fa" stroke="#006064" stroke-width="1"/>
+  <text x="350" y="312" text-anchor="middle" font-size="9" font-weight="bold" fill="#006064">SCK</text>
+
+  <!-- DOUT net label at GPIO32 (316, 348) — pointed left (incoming) -->
+  <polygon points="384,340 320,340 310,348 320,356 384,356" fill="#e0f7fa" stroke="#006064" stroke-width="1"/>
+  <text x="350" y="352" text-anchor="middle" font-size="9" font-weight="bold" fill="#006064">DOUT</text>
+
+  <!-- DATA net label at GPIO26 left (74, 268) — pointed right (incoming) -->
+  <polygon points="10,260 74,260 84,268 74,276 10,276" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="1"/>
+  <text x="42" y="272" text-anchor="middle" font-size="9" font-weight="bold" fill="#6a1b9a">DATA</text>
+
+  <!-- ══════════════════════════════════════
+       U2 — DRV8825 Stepper Driver
+       Box: x=490, y=80, w=170, h=290
+       ══════════════════════════════════════ -->
+  <rect x="490" y="80" width="170" height="290" fill="#fffdf0" stroke="black" stroke-width="1.5"/>
+  <text x="575" y="99"  text-anchor="middle" font-size="11" font-weight="bold">U2</text>
+  <text x="575" y="113" text-anchor="middle" font-size="10">DRV8825</text>
+  <line x1="490" y1="118" x2="660" y2="118" stroke="black" stroke-width="0.8"/>
+
+  <!-- U2 left pins (exit x=474) -->
+  <!-- STEP -->
+  <line x1="474" y1="148" x2="490" y2="148" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="152" font-size="9">STEP</text>
+  <!-- DIR -->
+  <line x1="474" y1="188" x2="490" y2="188" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="192" font-size="9">DIR</text>
+  <!-- ENABLE (active low) -->
+  <line x1="474" y1="228" x2="490" y2="228" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="232" font-size="9">ENABLE</text>
+  <line x1="494" y1="224" x2="532" y2="224" stroke="black" stroke-width="0.7"/><!-- overbar -->
+  <!-- M0/M1/M2 microstepping -->
+  <text x="494" y="254" font-size="8" fill="#666">M0 M1 M2</text>
+  <text x="494" y="265" font-size="8" fill="#888">(microstepping sel.)</text>
+  <!-- GND -->
+  <line x1="474" y1="278" x2="490" y2="278" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="282" font-size="9">GND</text>
+  <!-- VDD (logic 3.3V) -->
+  <line x1="474" y1="308" x2="490" y2="308" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="312" font-size="9">VDD</text>
+  <!-- VMOT (motor 12-24V) -->
+  <line x1="474" y1="348" x2="490" y2="348" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="352" font-size="9">VMOT</text>
+
+  <!-- U2 right pins (exit x=676) -->
+  <!-- A2 -->
+  <line x1="660" y1="148" x2="676" y2="148" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="152" text-anchor="end" font-size="9">A2</text>
+  <!-- A1 -->
+  <line x1="660" y1="188" x2="676" y2="188" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="192" text-anchor="end" font-size="9">A1</text>
+  <!-- B1 -->
+  <line x1="660" y1="238" x2="676" y2="238" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="242" text-anchor="end" font-size="9">B1</text>
+  <!-- B2 -->
+  <line x1="660" y1="278" x2="676" y2="278" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="282" text-anchor="end" font-size="9">B2</text>
+  <!-- FAULT output -->
+  <line x1="660" y1="340" x2="676" y2="340" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="344" text-anchor="end" font-size="9">FAULT</text>
+
+  <!-- U2 ENABLE net label (incoming) -->
+  <polygon points="474,220 420,220 410,228 420,236 474,236" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <text x="444" y="232" text-anchor="middle" font-size="8" font-weight="bold" fill="#e65100">GND/FLOAT</text>
+
+  <!-- U2 power symbols -->
+  <!-- GND at U2 (474, 278) -->
+  <line x1="454" y1="278" x2="474" y2="278" stroke="black" stroke-width="1.5"/>
+  <line x1="454" y1="278" x2="454" y2="295" stroke="black" stroke-width="1.5"/>
+  <line x1="442" y1="295" x2="466" y2="295" stroke="black" stroke-width="1.5"/>
+  <line x1="446" y1="300" x2="462" y2="300" stroke="black" stroke-width="1.5"/>
+  <line x1="450" y1="305" x2="458" y2="305" stroke="black" stroke-width="1.5"/>
+  <!-- VDD 3V3 at U2 (474, 308) -->
+  <line x1="440" y1="308" x2="474" y2="308" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="440" y1="308" x2="440" y2="290" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="428" y1="290" x2="452" y2="290" stroke="#cc0000" stroke-width="1.5"/>
+  <text x="440" y="284" text-anchor="middle" font-size="9" fill="#cc0000">+3V3</text>
+  <!-- 100nF cap on VDD -->
+  <text x="410" y="310" font-size="8" fill="#555">100n</text>
+  <!-- VMOT power supply arrow (474, 348) -->
+  <line x1="440" y1="348" x2="474" y2="348" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="440" y1="348" x2="440" y2="330" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="428" y1="330" x2="452" y2="330" stroke="#cc0000" stroke-width="1.5"/>
+  <text x="440" y="324" text-anchor="middle" font-size="9" fill="#cc0000">+VMOT</text>
+  <text x="440" y="314" text-anchor="middle" font-size="8" fill="#555">12–24V</text>
+  <!-- 100µF cap note on VMOT -->
+  <text x="406" y="352" font-size="8" fill="#555">100µ</text>
+
+  <!-- ── STEP wire: net label → U2 STEP ── -->
+  <!-- Net label on U2 STEP left -->
+  <polygon points="474,140 410,140 400,148 410,156 474,156" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <text x="438" y="152" text-anchor="middle" font-size="9" font-weight="bold" fill="#2e7d32">STEP</text>
+
+  <!-- ── DIR wire: net label → U2 DIR ── -->
+  <polygon points="474,180 410,180 400,188 410,196 474,196" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <text x="438" y="192" text-anchor="middle" font-size="9" font-weight="bold" fill="#2e7d32">DIR</text>
+
+  <!-- ══════════════════════════════════════
+       M1 — Stepper Motor (NEMA 17/23)
+       Box: x=780, y=80, w=150, h=270
+       ══════════════════════════════════════ -->
+  <rect x="780" y="80" width="150" height="270" fill="#fff0f0" stroke="black" stroke-width="1.5"/>
+  <text x="855" y="99"  text-anchor="middle" font-size="11" font-weight="bold">M1</text>
+  <text x="855" y="113" text-anchor="middle" font-size="10">Stepper Motor</text>
+  <line x1="780" y1="118" x2="930" y2="118" stroke="black" stroke-width="0.8"/>
+
+  <!-- Motor coil A symbol (two arcs = inductor) -->
+  <text x="855" y="140" text-anchor="middle" font-size="9" fill="#800">Coil A</text>
+  <!-- Coil A: simple inductor representation -->
+  <path d="M 810,160 Q 810,148 820,148 Q 830,148 830,160 Q 830,148 840,148 Q 850,148 850,160 Q 850,148 860,148 Q 870,148 870,160 Q 870,148 880,148 Q 890,148 890,160"
+        fill="none" stroke="#800" stroke-width="1.5"/>
+  <text x="855" y="190" text-anchor="middle" font-size="9" fill="#800">Coil B</text>
+  <path d="M 810,210 Q 810,198 820,198 Q 830,198 830,210 Q 830,198 840,198 Q 850,198 850,210 Q 850,198 860,198 Q 870,198 870,210 Q 870,198 880,198 Q 890,198 890,210"
+        fill="none" stroke="#800" stroke-width="1.5"/>
+
+  <text x="855" y="238" text-anchor="middle" font-size="8" fill="#555">4-wire bipolar</text>
+  <text x="855" y="252" text-anchor="middle" font-size="8" fill="#555">NEMA 17 / 23</text>
+  <text x="855" y="268" text-anchor="middle" font-size="8" fill="#555">Rated: per spec</text>
+  <text x="855" y="284" text-anchor="middle" font-size="8" fill="#555">via DRV8825 driver</text>
+  <text x="855" y="300" text-anchor="middle" font-size="8" fill="#555">Drives shear mechanism</text>
+  <text x="855" y="316" text-anchor="middle" font-size="8" fill="#555">via leadscrew / coupling</text>
+
+  <!-- M1 left pins (exit x=764) -->
+  <line x1="764" y1="148" x2="780" y2="148" stroke="black" stroke-width="1.5"/>
+  <text x="784" y="152" font-size="9">A+</text>
+  <line x1="764" y1="170" x2="780" y2="170" stroke="black" stroke-width="1.5"/>
+  <text x="784" y="174" font-size="9">A−</text>
+  <line x1="764" y1="198" x2="780" y2="198" stroke="black" stroke-width="1.5"/>
+  <text x="784" y="202" font-size="9">B+</text>
+  <line x1="764" y1="220" x2="780" y2="220" stroke="black" stroke-width="1.5"/>
+  <text x="784" y="224" font-size="9">B−</text>
+
+  <!-- DRV8825 → Stepper wires -->
+  <!-- A2 → A+ -->
+  <line x1="676" y1="148" x2="764" y2="148" stroke="#800" stroke-width="1.5"/>
+  <!-- A1 → A− -->
+  <line x1="676" y1="188" x2="720" y2="188" stroke="#800" stroke-width="1.5"/>
+  <line x1="720" y1="188" x2="720" y2="170" stroke="#800" stroke-width="1.5"/>
+  <line x1="720" y1="170" x2="764" y2="170" stroke="#800" stroke-width="1.5"/>
+  <!-- B1 → B+ -->
+  <line x1="676" y1="238" x2="740" y2="238" stroke="#800" stroke-width="1.5"/>
+  <line x1="740" y1="238" x2="740" y2="198" stroke="#800" stroke-width="1.5"/>
+  <line x1="740" y1="198" x2="764" y2="198" stroke="#800" stroke-width="1.5"/>
+  <!-- B2 → B− -->
+  <line x1="676" y1="278" x2="756" y2="278" stroke="#800" stroke-width="1.5"/>
+  <line x1="756" y1="278" x2="756" y2="220" stroke="#800" stroke-width="1.5"/>
+  <line x1="756" y1="220" x2="764" y2="220" stroke="#800" stroke-width="1.5"/>
+  <!-- Wire labels -->
+  <text x="680" y="144" font-size="8" fill="#800">A2</text>
+  <text x="680" y="162" font-size="8" fill="#800">A1</text>
+  <text x="680" y="232" font-size="8" fill="#800">B1</text>
+  <text x="680" y="272" font-size="8" fill="#800">B2</text>
+
+  <!-- ══════════════════════════════════════
+       U3 — HX711 Load Cell Amplifier
+       Box: x=490, y=460, w=170, h=200
+       ══════════════════════════════════════ -->
+  <rect x="490" y="460" width="170" height="200" fill="#f0fffe" stroke="black" stroke-width="1.5"/>
+  <text x="575" y="479" text-anchor="middle" font-size="11" font-weight="bold">U3</text>
+  <text x="575" y="493" text-anchor="middle" font-size="10">HX711</text>
+  <line x1="490" y1="498" x2="660" y2="498" stroke="black" stroke-width="0.8"/>
+
+  <!-- U3 left pins (exit x=474) -->
+  <!-- SCK -->
+  <line x1="474" y1="520" x2="490" y2="520" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="524" font-size="9">SCK</text>
+  <!-- DOUT -->
+  <line x1="474" y1="558" x2="490" y2="558" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="562" font-size="9">DOUT</text>
+  <!-- VCC -->
+  <line x1="474" y1="596" x2="490" y2="596" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="600" font-size="9">VCC</text>
+  <!-- GND -->
+  <line x1="474" y1="636" x2="490" y2="636" stroke="black" stroke-width="1.5"/>
+  <text x="494" y="640" font-size="9">GND</text>
+
+  <!-- U3 right pins (exit x=676) -->
+  <!-- E+ -->
+  <line x1="660" y1="520" x2="676" y2="520" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="524" text-anchor="end" font-size="9">E+</text>
+  <!-- E− -->
+  <line x1="660" y1="556" x2="676" y2="556" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="560" text-anchor="end" font-size="9">E−</text>
+  <!-- A+ -->
+  <line x1="660" y1="600" x2="676" y2="600" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="604" text-anchor="end" font-size="9">A+</text>
+  <!-- A− -->
+  <line x1="660" y1="636" x2="676" y2="636" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="640" text-anchor="end" font-size="9">A−</text>
+  <!-- RATE -->
+  <line x1="660" y1="648" x2="676" y2="648" stroke="black" stroke-width="1.5"/>
+  <text x="656" y="652" text-anchor="end" font-size="8" fill="#888">RATE→GND(10 SPS)</text>
+
+  <!-- U3 power symbols -->
+  <!-- VCC +3V3 (474, 596) -->
+  <line x1="440" y1="596" x2="474" y2="596" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="440" y1="596" x2="440" y2="578" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="428" y1="578" x2="452" y2="578" stroke="#cc0000" stroke-width="1.5"/>
+  <text x="440" y="572" text-anchor="middle" font-size="9" fill="#cc0000">+3V3</text>
+  <text x="408" y="598" font-size="8" fill="#555">100n</text>
+  <!-- GND (474, 636) -->
+  <line x1="454" y1="636" x2="474" y2="636" stroke="black" stroke-width="1.5"/>
+  <line x1="454" y1="636" x2="454" y2="654" stroke="black" stroke-width="1.5"/>
+  <line x1="442" y1="654" x2="466" y2="654" stroke="black" stroke-width="1.5"/>
+  <line x1="446" y1="659" x2="462" y2="659" stroke="black" stroke-width="1.5"/>
+  <line x1="450" y1="664" x2="458" y2="664" stroke="black" stroke-width="1.5"/>
+
+  <!-- U3 SCK / DOUT net labels -->
+  <polygon points="474,512 410,512 400,520 410,528 474,528" fill="#e0f7fa" stroke="#006064" stroke-width="1"/>
+  <text x="438" y="524" text-anchor="middle" font-size="9" font-weight="bold" fill="#006064">SCK</text>
+
+  <polygon points="474,566 420,566 430,558 420,550 474,550" fill="#e0f7fa" stroke="#006064" stroke-width="1"/>
+  <text x="449" y="562" text-anchor="middle" font-size="9" font-weight="bold" fill="#006064">DOUT</text>
+
+  <!-- ══════════════════════════════════════
+       Z1 — Load Cell (Wheatstone Bridge)
+       Box: x=780, y=450, w=150, h=220
+       ══════════════════════════════════════ -->
+  <rect x="780" y="450" width="150" height="220" fill="#f0f0ff" stroke="black" stroke-width="1.5"/>
+  <text x="855" y="469" text-anchor="middle" font-size="11" font-weight="bold">Z1</text>
+  <text x="855" y="483" text-anchor="middle" font-size="10">Load Cell</text>
+  <line x1="780" y1="488" x2="930" y2="488" stroke="black" stroke-width="0.8"/>
+
+  <!-- Wheatstone bridge symbol -->
+  <!-- Diamond shape -->
+  <polygon points="855,500 835,535 855,570 875,535"
+           fill="none" stroke="#336" stroke-width="1.5"/>
+  <!-- Gauge resistors (strain gauges — labeled Rg) -->
+  <text x="820" y="530" text-anchor="middle" font-size="8" fill="#336">Rg</text>
+  <text x="890" y="530" text-anchor="middle" font-size="8" fill="#336">Rg</text>
+  <text x="855" y="510" text-anchor="middle" font-size="8" fill="#336">Rg</text>
+  <text x="855" y="568" text-anchor="middle" font-size="8" fill="#336">Rg</text>
+  <text x="855" y="592" text-anchor="middle" font-size="8" fill="#555">Wheatstone bridge</text>
+  <text x="855" y="606" text-anchor="middle" font-size="8" fill="#555">strain gauges</text>
+  <text x="855" y="622" text-anchor="middle" font-size="8" fill="#555">typical: 1 kΩ full bridge</text>
+  <text x="855" y="636" text-anchor="middle" font-size="8" fill="#555">Output: 1–3 mV/V typ.</text>
+  <text x="855" y="654" text-anchor="middle" font-size="8" fill="#555">HX711 gain: ×64 or ×128</text>
+
+  <!-- Z1 left pins (exit x=764) -->
+  <line x1="764" y1="520" x2="780" y2="520" stroke="black" stroke-width="1.5"/>
+  <text x="784" y="524" font-size="9">E+</text>
+  <line x1="764" y1="556" x2="780" y2="556" stroke="black" stroke-width="1.5"/>
+  <text x="784" y="560" font-size="9">E−</text>
+  <line x1="764" y1="600" x2="780" y2="600" stroke="black" stroke-width="1.5"/>
+  <text x="784" y="604" font-size="9">A+</text>
+  <line x1="764" y1="636" x2="780" y2="636" stroke="black" stroke-width="1.5"/>
+  <text x="784" y="640" font-size="9">A−</text>
+
+  <!-- HX711 → Load Cell wires -->
+  <line x1="676" y1="520" x2="764" y2="520" stroke="#336" stroke-width="1.5"/>
+  <line x1="676" y1="556" x2="764" y2="556" stroke="#336" stroke-width="1.5"/>
+  <line x1="676" y1="600" x2="764" y2="600" stroke="#336" stroke-width="1.5"/>
+  <line x1="676" y1="636" x2="764" y2="636" stroke="#336" stroke-width="1.5"/>
+  <!-- Wire labels -->
+  <text x="700" y="516" font-size="8" fill="#336">E+</text>
+  <text x="700" y="552" font-size="8" fill="#336">E−</text>
+  <text x="700" y="596" font-size="8" fill="#336">A+</text>
+  <text x="700" y="632" font-size="8" fill="#336">A−</text>
+
+  <!-- ══════════════════════════════════════
+       J1 — Digital Caliper Connector
+       Box: x=90, y=590, w=140, h=130
+       ══════════════════════════════════════ -->
+  <rect x="90" y="590" width="140" height="130" fill="#fdf5ff" stroke="black" stroke-width="1.5"/>
+  <text x="160" y="609" text-anchor="middle" font-size="11" font-weight="bold">J1</text>
+  <text x="160" y="623" text-anchor="middle" font-size="10">Digital Caliper</text>
+  <line x1="90" y1="628" x2="230" y2="628" stroke="black" stroke-width="0.8"/>
+
+  <!-- J1 right pins (exit x=246) -->
+  <!-- VCC -->
+  <line x1="230" y1="648" x2="246" y2="648" stroke="black" stroke-width="1.5"/>
+  <text x="226" y="652" text-anchor="end" font-size="9">VCC</text>
+  <!-- GND -->
+  <line x1="230" y1="668" x2="246" y2="668" stroke="black" stroke-width="1.5"/>
+  <text x="226" y="672" text-anchor="end" font-size="9">GND</text>
+  <!-- CLK -->
+  <line x1="230" y1="688" x2="246" y2="688" stroke="black" stroke-width="1.5"/>
+  <text x="226" y="692" text-anchor="end" font-size="9">CLK</text>
+  <!-- DATA -->
+  <line x1="230" y1="708" x2="246" y2="708" stroke="black" stroke-width="1.5"/>
+  <text x="226" y="712" text-anchor="end" font-size="9">DATA</text>
+
+  <!-- J1 internal pin labels -->
+  <text x="100" y="652" font-size="9">1</text>
+  <text x="100" y="672" font-size="9">2</text>
+  <text x="100" y="692" font-size="9">3</text>
+  <text x="100" y="712" font-size="9">4</text>
+  <text x="108" y="736" font-size="8" fill="#555">Note: 1.5V logic or 3.3V</text>
+  <text x="108" y="748" font-size="8" fill="#555">depending on caliper model</text>
+
+  <!-- J1 power symbols -->
+  <!-- VCC 3V3 -->
+  <line x1="246" y1="648" x2="270" y2="648" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="270" y1="648" x2="270" y2="630" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="258" y1="630" x2="282" y2="630" stroke="#cc0000" stroke-width="1.5"/>
+  <text x="270" y="624" text-anchor="middle" font-size="9" fill="#cc0000">+3V3</text>
+  <!-- GND -->
+  <line x1="246" y1="668" x2="270" y2="668" stroke="black" stroke-width="1.5"/>
+  <line x1="270" y1="668" x2="270" y2="686" stroke="black" stroke-width="1.5"/>
+  <line x1="258" y1="686" x2="282" y2="686" stroke="black" stroke-width="1.5"/>
+  <line x1="262" y1="691" x2="278" y2="691" stroke="black" stroke-width="1.5"/>
+  <line x1="266" y1="696" x2="274" y2="696" stroke="black" stroke-width="1.5"/>
+
+  <!-- J1 CLK / DATA net labels -->
+  <polygon points="246,680 310,680 320,688 310,696 246,696" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="1"/>
+  <text x="280" y="692" text-anchor="middle" font-size="9" font-weight="bold" fill="#6a1b9a">CLK</text>
+
+  <polygon points="246,716 320,716 330,724 320,732 246,732"
+           fill="#f3e5f5" stroke="#6a1b9a" stroke-width="1"/>
+  <!-- slightly offset to show DATA going to x=84 from GPIO26 -->
+  <text x="285" y="728" text-anchor="middle" font-size="9" font-weight="bold" fill="#6a1b9a">DATA</text>
+  <!-- Fix: DATA pin at y=708 not 716 -->
+
+  <!-- ══════════════════════════════════════
+       DECOUPLING CAPACITORS (C1, C2, C3)
+       ══════════════════════════════════════ -->
+  <!-- C1: 100nF on DRV8825 VDD (near 440, 308) — note only, symbol shown as small cap -->
+  <!-- Cap symbol between +3V3 and GND on VDD pin -->
+  <line x1="470" y1="308" x2="470" y2="320" stroke="black" stroke-width="1"/>
+  <line x1="464" y1="320" x2="476" y2="320" stroke="black" stroke-width="2"/>
+  <line x1="464" y1="324" x2="476" y2="324" stroke="black" stroke-width="2"/>
+  <line x1="470" y1="324" x2="470" y2="336" stroke="black" stroke-width="1"/>
+  <line x1="462" y1="336" x2="478" y2="336" stroke="black" stroke-width="1.2"/>
+  <line x1="465" y1="340" x2="475" y2="340" stroke="black" stroke-width="1.2"/>
+  <line x1="468" y1="344" x2="472" y2="344" stroke="black" stroke-width="1.2"/>
+  <text x="480" y="330" font-size="8" fill="#555">C1</text>
+  <text x="480" y="340" font-size="8" fill="#555">100n</text>
+
+  <!-- C2: 100nF on HX711 VCC (near 440, 596) -->
+  <line x1="460" y1="596" x2="460" y2="608" stroke="black" stroke-width="1"/>
+  <line x1="454" y1="608" x2="466" y2="608" stroke="black" stroke-width="2"/>
+  <line x1="454" y1="612" x2="466" y2="612" stroke="black" stroke-width="2"/>
+  <line x1="460" y1="612" x2="460" y2="624" stroke="black" stroke-width="1"/>
+  <line x1="452" y1="624" x2="468" y2="624" stroke="black" stroke-width="1.2"/>
+  <line x1="455" y1="628" x2="465" y2="628" stroke="black" stroke-width="1.2"/>
+  <line x1="458" y1="632" x2="462" y2="632" stroke="black" stroke-width="1.2"/>
+  <text x="470" y="618" font-size="8" fill="#555">C2</text>
+  <text x="470" y="628" font-size="8" fill="#555">100n</text>
+
+  <!-- ══════════════════════════════════════
+       +VMOT external supply symbol (standalone)
+       ══════════════════════════════════════ -->
+  <rect x="400" y="370" width="112" height="48" rx="4" fill="#fff3cd" stroke="#e67e22" stroke-width="1.2" stroke-dasharray="4,2"/>
+  <text x="456" y="388" text-anchor="middle" font-size="9" font-weight="bold" fill="#e67e22">External PSU</text>
+  <text x="456" y="402" text-anchor="middle" font-size="9" fill="#c0392b">12 – 24 V DC</text>
+  <text x="456" y="414" text-anchor="middle" font-size="8" fill="#555">(min. 2 A recommended)</text>
+  <line x1="440" y1="370" x2="440" y2="348" stroke="#cc0000" stroke-width="1.5"/>
+
+  <!-- ══════════════════════════════════════
+       LEGEND
+       ══════════════════════════════════════ -->
+  <rect x="940" y="430" width="148" height="200" fill="white" stroke="#999" stroke-width="1"/>
+  <text x="1014" y="447" text-anchor="middle" font-size="10" font-weight="bold">Legend</text>
+  <line x1="940" y1="452" x2="1088" y2="452" stroke="#999" stroke-width="0.8"/>
+  <!-- VCC symbol -->
+  <line x1="960" y1="476" x2="960" y2="462" stroke="#cc0000" stroke-width="1.5"/>
+  <line x1="952" y1="462" x2="968" y2="462" stroke="#cc0000" stroke-width="1.5"/>
+  <text x="975" y="473" font-size="9" fill="#cc0000">Power rail (VCC)</text>
+  <!-- GND symbol -->
+  <line x1="960" y1="492" x2="960" y2="508" stroke="black" stroke-width="1.5"/>
+  <line x1="952" y1="508" x2="968" y2="508" stroke="black" stroke-width="1.5"/>
+  <line x1="955" y1="512" x2="965" y2="512" stroke="black" stroke-width="1.5"/>
+  <line x1="958" y1="516" x2="962" y2="516" stroke="black" stroke-width="1.5"/>
+  <text x="975" y="506" font-size="9">Ground (GND)</text>
+  <!-- Net label flag -->
+  <polygon points="950,528 980,528 988,534 980,540 950,540" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <text x="965" y="538" text-anchor="middle" font-size="8" fill="#2e7d32">NET</text>
+  <text x="1000" y="538" font-size="9">Named net</text>
+  <!-- Wire -->
+  <line x1="950" y1="558" x2="990" y2="558" stroke="black" stroke-width="1.5"/>
+  <text x="1000" y="562" font-size="9">Signal wire</text>
+  <!-- Motor wire -->
+  <line x1="950" y1="576" x2="990" y2="576" stroke="#800" stroke-width="1.5"/>
+  <text x="1000" y="580" font-size="9">Motor coil</text>
+  <!-- Load cell wire -->
+  <line x1="950" y1="594" x2="990" y2="594" stroke="#336" stroke-width="1.5"/>
+  <text x="1000" y="598" font-size="9">Load cell</text>
+  <!-- Cap symbol -->
+  <line x1="960" y1="612" x2="960" y2="620" stroke="black" stroke-width="1"/>
+  <line x1="954" y1="620" x2="966" y2="620" stroke="black" stroke-width="2"/>
+  <line x1="954" y1="624" x2="966" y2="624" stroke="black" stroke-width="2"/>
+  <line x1="960" y1="624" x2="960" y2="630" stroke="black" stroke-width="1"/>
+  <text x="975" y="624" font-size="9">Bypass cap</text>
+  <!-- Inductor -->
+  <path d="M 950,648 Q 950,642 955,642 Q 960,642 960,648 Q 960,642 965,642 Q 970,642 970,648 Q 970,642 975,642 Q 980,642 980,648"
+        fill="none" stroke="black" stroke-width="1.5"/>
+  <text x="990" y="648" font-size="9">Motor coil (L)</text>
+
+  <!-- Notes box -->
+  <rect x="940" y="80" width="148" height="340" fill="#fffef0" stroke="#999" stroke-width="1"/>
+  <text x="1014" y="97" text-anchor="middle" font-size="10" font-weight="bold">Notes</text>
+  <line x1="940" y1="102" x2="1088" y2="102" stroke="#999" stroke-width="0.8"/>
+  <text x="948" y="118" font-size="8">1. All GND pins must be</text>
+  <text x="948" y="130" font-size="8">   connected to common</text>
+  <text x="948" y="142" font-size="8">   ground.</text>
+  <text x="948" y="158" font-size="8">2. VMOT separate from</text>
+  <text x="948" y="170" font-size="8">   logic supply. Add</text>
+  <text x="948" y="182" font-size="8">   100µF across VMOT.</text>
+  <text x="948" y="198" font-size="8">3. CLK/DATA/SCK/DOUT</text>
+  <text x="948" y="210" font-size="8">   shown as net labels</text>
+  <text x="948" y="222" font-size="8">   (see matching flags).</text>
+  <text x="948" y="238" font-size="8">4. Caliper VCC: check</text>
+  <text x="948" y="250" font-size="8">   model — may need 1.5V</text>
+  <text x="948" y="262" font-size="8">   or level shifter.</text>
+  <text x="948" y="278" font-size="8">5. GPIO0 must float for</text>
+  <text x="948" y="290" font-size="8">   normal boot. Do NOT</text>
+  <text x="948" y="302" font-size="8">   connect to GND.</text>
+  <text x="948" y="318" font-size="8">6. DRV8825 ENABLE pin:</text>
+  <text x="948" y="330" font-size="8">   tie to GND to always</text>
+  <text x="948" y="342" font-size="8">   enable, or drive low</text>
+  <text x="948" y="354" font-size="8">   from ESP32.</text>
+  <text x="948" y="370" font-size="8">7. Add heatsink to U2</text>
+  <text x="948" y="382" font-size="8">   if I_motor &gt; 0.5 A.</text>
+  <text x="948" y="398" font-size="8">8. Set Vref on DRV8825</text>
+  <text x="948" y="410" font-size="8">   to limit motor current</text>
+  <text x="948" y="422" font-size="8">   (trim pot on board).</text>
+
+</svg>

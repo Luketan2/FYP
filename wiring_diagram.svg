@@ -1,0 +1,235 @@
+<svg width="980" height="700" xmlns="http://www.w3.org/2000/svg"
+     font-family="'Segoe UI', Arial, sans-serif">
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fafbfc"/>
+      <stop offset="100%" stop-color="#eef0f2"/>
+    </linearGradient>
+    <!-- Arrow markers -->
+    <marker id="arr"      markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0,0 8,3 0,6" fill="#555"/></marker>
+    <marker id="arr-pur"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0,0 8,3 0,6" fill="#6a1b9a"/></marker>
+    <marker id="arr-org"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0,0 8,3 0,6" fill="#e65100"/></marker>
+    <marker id="arr-teal" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0,0 8,3 0,6" fill="#006064"/></marker>
+    <marker id="arr-red"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0,0 8,3 0,6" fill="#b71c1c"/></marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="980" height="700" fill="url(#bg)" rx="10"/>
+
+  <!-- Title -->
+  <text x="490" y="24" text-anchor="middle" font-size="16" font-weight="bold" fill="#1a1a2e">
+    Direct Shear Strain Device — System Wiring Diagram
+  </text>
+
+  <!-- ─────────────────────── PC / GUI ─────────────────────── -->
+  <rect x="390" y="33" width="200" height="68" rx="8"
+        fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+  <text x="490" y="57"  text-anchor="middle" font-size="13" font-weight="bold" fill="#1565c0">PC / GUI</text>
+  <text x="490" y="74"  text-anchor="middle" font-size="10" fill="#444">Python Tkinter Application</text>
+  <text x="490" y="91"  text-anchor="middle" font-size="10" fill="#777">Serial @ 115200 baud</text>
+
+  <!-- USB wire (PC → ESP32) -->
+  <line x1="490" y1="101" x2="490" y2="147"
+        stroke="#6a1b9a" stroke-width="2.5" stroke-dasharray="6,3"
+        marker-end="url(#arr-pur)"/>
+  <rect x="498" y="112" width="82" height="20" rx="4" fill="#f3e5f5" stroke="#ce93d8" stroke-width="1"/>
+  <text x="539" y="126" text-anchor="middle" font-size="10" font-weight="bold" fill="#6a1b9a">USB Serial</text>
+
+  <!-- ─────────────────────── ESP32 ─────────────────────── -->
+  <rect x="160" y="150" width="660" height="176" rx="8"
+        fill="#e8f5e9" stroke="#2e7d32" stroke-width="2.5"/>
+  <text x="490" y="174" text-anchor="middle" font-size="14" font-weight="bold" fill="#2e7d32">
+    ESP32 Microcontroller
+  </text>
+
+  <!-- Inner pin-assignment table -->
+  <rect x="225" y="182" width="530" height="130" rx="6"
+        fill="white" fill-opacity="0.55" stroke="#a5d6a7" stroke-width="1"/>
+
+  <!-- Vertical dividers -->
+  <line x1="410" y1="187" x2="410" y2="307" stroke="#a5d6a7" stroke-width="1"/>
+  <line x1="560" y1="187" x2="560" y2="307" stroke="#a5d6a7" stroke-width="1"/>
+
+  <!-- Column headers -->
+  <text x="317" y="200" text-anchor="middle" font-size="11" font-weight="bold" fill="#e65100">Stepper Driver</text>
+  <text x="485" y="200" text-anchor="middle" font-size="11" font-weight="bold" fill="#6a1b9a">Caliper</text>
+  <text x="648" y="200" text-anchor="middle" font-size="11" font-weight="bold" fill="#006064">HX711</text>
+
+  <!-- Stepper pins -->
+  <text x="235" y="220" font-size="10" fill="#333">GPIO16  →  STEP</text>
+  <text x="235" y="238" font-size="10" fill="#333">GPIO17  →  DIR</text>
+
+  <!-- Caliper pins -->
+  <text x="420" y="220" font-size="10" fill="#333">GPIO27  →  CLK</text>
+  <text x="420" y="238" font-size="10" fill="#333">GPIO26  ←  DATA</text>
+
+  <!-- HX711 pins -->
+  <text x="570" y="220" font-size="10" fill="#333">GPIO33  →  SCK</text>
+  <text x="570" y="238" font-size="10" fill="#333">GPIO32  ←  DOUT</text>
+
+  <!-- Horizontal rule -->
+  <line x1="225" y1="250" x2="755" y2="250" stroke="#a5d6a7" stroke-width="1"/>
+
+  <!-- Power / notes rows -->
+  <text x="490" y="268" text-anchor="middle" font-size="10" fill="#555">
+    3.3V out → Caliper VCC, HX711 VCC   |   GND → all modules (common ground)
+  </text>
+  <text x="490" y="285" text-anchor="middle" font-size="10" fill="#555">
+    USB 5V → ESP32 VIN (onboard 3.3V regulator)   |   Motor VMOT: separate 12–24 V DC
+  </text>
+  <text x="490" y="302" text-anchor="middle" font-size="10" fill="#888">
+    Non-strap pins used for all peripherals   |   GPIO0 left floating (normal boot)
+  </text>
+
+  <!-- Pin-exit dots on ESP32 borders -->
+  <!-- Left (STEP / DIR) -->
+  <circle cx="160" cy="218" r="5" fill="#e65100" stroke="white" stroke-width="1.5"/>
+  <circle cx="160" cy="248" r="5" fill="#e65100" stroke="white" stroke-width="1.5"/>
+  <!-- Bottom (CLK / DATA) -->
+  <circle cx="455" cy="326" r="5" fill="#6a1b9a" stroke="white" stroke-width="1.5"/>
+  <circle cx="484" cy="326" r="5" fill="#6a1b9a" stroke="white" stroke-width="1.5"/>
+  <!-- Right (SCK / DOUT) -->
+  <circle cx="820" cy="218" r="5" fill="#006064" stroke="white" stroke-width="1.5"/>
+  <circle cx="820" cy="248" r="5" fill="#006064" stroke="white" stroke-width="1.5"/>
+
+  <!-- ─────────── STEP wire (GPIO16) ESP32-left → DRV8825-top ─────────── -->
+  <polyline points="160,218 62,218 62,418"
+            fill="none" stroke="#e65100" stroke-width="2"
+            marker-end="url(#arr-org)"/>
+
+  <!-- ─────────── DIR wire (GPIO17) ESP32-left → DRV8825-top ─────────── -->
+  <polyline points="160,248 42,248 42,418"
+            fill="none" stroke="#e65100" stroke-width="2"
+            marker-end="url(#arr-org)"/>
+
+  <!-- STEP/DIR label bubble -->
+  <rect x="0" y="268" width="95" height="38" rx="4"
+        fill="#fff3e0" stroke="#ffb74d" stroke-width="1"/>
+  <text x="47" y="283" text-anchor="middle" font-size="9" font-weight="bold" fill="#e65100">STEP (GPIO16)</text>
+  <text x="47" y="297" text-anchor="middle" font-size="9" font-weight="bold" fill="#e65100">DIR  (GPIO17)</text>
+
+  <!-- ─────────── CLK wire (GPIO27) ESP32-bottom → Caliper-top ─────────── -->
+  <polyline points="455,326 455,418"
+            fill="none" stroke="#6a1b9a" stroke-width="2"
+            marker-end="url(#arr-pur)"/>
+
+  <!-- ─────────── DATA wire (GPIO26) ESP32-bottom → Caliper-top ─────────── -->
+  <polyline points="484,326 484,418"
+            fill="none" stroke="#6a1b9a" stroke-width="2"
+            marker-end="url(#arr-pur)"/>
+
+  <!-- CLK/DATA label bubble -->
+  <rect x="497" y="352" width="98" height="38" rx="4"
+        fill="#f3e5f5" stroke="#ce93d8" stroke-width="1"/>
+  <text x="546" y="367" text-anchor="middle" font-size="9" font-weight="bold" fill="#6a1b9a">CLK  (GPIO27)</text>
+  <text x="546" y="381" text-anchor="middle" font-size="9" font-weight="bold" fill="#6a1b9a">DATA (GPIO26)</text>
+
+  <!-- ─────────── SCK wire (GPIO33) ESP32-right → HX711-top ─────────── -->
+  <polyline points="820,218 878,218 878,418"
+            fill="none" stroke="#006064" stroke-width="2"
+            marker-end="url(#arr-teal)"/>
+
+  <!-- ─────────── DOUT wire (GPIO32) ESP32-right → HX711-top ─────────── -->
+  <polyline points="820,248 898,248 898,418"
+            fill="none" stroke="#006064" stroke-width="2"
+            marker-end="url(#arr-teal)"/>
+
+  <!-- SCK/DOUT label bubble -->
+  <rect x="822" y="288" width="98" height="38" rx="4"
+        fill="#e0f7fa" stroke="#80cbc4" stroke-width="1"/>
+  <text x="871" y="303" text-anchor="middle" font-size="9" font-weight="bold" fill="#006064">SCK  (GPIO33)</text>
+  <text x="871" y="317" text-anchor="middle" font-size="9" font-weight="bold" fill="#006064">DOUT (GPIO32)</text>
+
+  <!-- ─────────────────────── DRV8825 ─────────────────────── -->
+  <rect x="20" y="418" width="175" height="108" rx="8"
+        fill="#fff8e1" stroke="#f57f17" stroke-width="2"/>
+  <text x="107" y="441" text-anchor="middle" font-size="12" font-weight="bold" fill="#e65100">DRV8825</text>
+  <text x="107" y="458" text-anchor="middle" font-size="11" fill="#e65100">Stepper Driver</text>
+  <text x="107" y="476" text-anchor="middle" font-size="9" fill="#777">Inputs: STEP, DIR, ENABLE</text>
+  <text x="107" y="492" text-anchor="middle" font-size="9" fill="#777">MS1/MS2/MS3: microstepping</text>
+  <text x="107" y="508" text-anchor="middle" font-size="9" fill="#c62828">VMOT: 12–24 V DC supply</text>
+  <text x="107" y="521" text-anchor="middle" font-size="9" fill="#777">RST, SLP: pulled high (active)</text>
+
+  <!-- Motor power label arrow into DRV8825 -->
+  <rect x="202" y="457" width="112" height="30" rx="4"
+        fill="#ffcdd2" stroke="#ef9a9a" stroke-width="1"/>
+  <text x="258" y="470" text-anchor="middle" font-size="9" font-weight="bold" fill="#b71c1c">12–24 V DC</text>
+  <text x="258" y="482" text-anchor="middle" font-size="9" fill="#b71c1c">Motor Power Supply</text>
+  <line x1="202" y1="472" x2="196" y2="472" stroke="#b71c1c" stroke-width="2"
+        marker-end="url(#arr-red)"/>
+
+  <!-- DRV8825 → Stepper wire -->
+  <line x1="107" y1="526" x2="107" y2="578"
+        stroke="#b71c1c" stroke-width="2.5"
+        marker-end="url(#arr-red)"/>
+  <rect x="115" y="542" width="82" height="22" rx="4"
+        fill="#fce4ec" stroke="#f48fb1" stroke-width="1"/>
+  <text x="156" y="557" text-anchor="middle" font-size="9" font-weight="bold" fill="#b71c1c">A+ / A− / B+ / B−</text>
+
+  <!-- ─────────────────────── Stepper Motor ─────────────────────── -->
+  <rect x="20" y="580" width="175" height="80" rx="8"
+        fill="#fce4ec" stroke="#c62828" stroke-width="2"/>
+  <text x="107" y="603" text-anchor="middle" font-size="12" font-weight="bold" fill="#c62828">Stepper Motor</text>
+  <text x="107" y="620" text-anchor="middle" font-size="10" fill="#555">4-wire bipolar (NEMA 17/23)</text>
+  <text x="107" y="637" text-anchor="middle" font-size="9" fill="#777">Drives shear mechanism</text>
+  <text x="107" y="652" text-anchor="middle" font-size="9" fill="#777">via leadscrew / belt</text>
+
+  <!-- ─────────────────────── Digital Caliper ─────────────────────── -->
+  <rect x="402" y="418" width="176" height="108" rx="8"
+        fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2"/>
+  <text x="490" y="441" text-anchor="middle" font-size="12" font-weight="bold" fill="#6a1b9a">Digital Caliper</text>
+  <text x="490" y="458" text-anchor="middle" font-size="11" fill="#555">Displacement Sensor</text>
+  <text x="490" y="476" text-anchor="middle" font-size="9" fill="#777">CLK = GPIO27  (ESP32 output)</text>
+  <text x="490" y="492" text-anchor="middle" font-size="9" fill="#777">DATA = GPIO26 (ESP32 input)</text>
+  <text x="490" y="508" text-anchor="middle" font-size="9" fill="#777">VCC: 1.5 V internal battery</text>
+  <text x="490" y="520" text-anchor="middle" font-size="9" fill="#6a1b9a">or 3.3 V tap (caliper dependent)</text>
+
+  <!-- ─────────────────────── Power note ─────────────────────── -->
+  <rect x="402" y="580" width="176" height="80" rx="8"
+        fill="#fff9c4" stroke="#f9a825" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="490" y="601" text-anchor="middle" font-size="11" font-weight="bold" fill="#e65100">Power Notes</text>
+  <text x="490" y="618" text-anchor="middle" font-size="9" fill="#555">ESP32 3.3V → HX711, Caliper</text>
+  <text x="490" y="633" text-anchor="middle" font-size="9" fill="#555">USB 5V (PC) → ESP32 VIN</text>
+  <text x="490" y="648" text-anchor="middle" font-size="9" fill="#c62828">Common GND across all modules</text>
+
+  <!-- ─────────────────────── HX711 ─────────────────────── -->
+  <rect x="775" y="418" width="175" height="108" rx="8"
+        fill="#e0f7fa" stroke="#00838f" stroke-width="2"/>
+  <text x="862" y="441" text-anchor="middle" font-size="12" font-weight="bold" fill="#006064">HX711</text>
+  <text x="862" y="458" text-anchor="middle" font-size="11" fill="#006064">Load Cell Amplifier</text>
+  <text x="862" y="476" text-anchor="middle" font-size="9" fill="#777">SCK  = GPIO33 (ESP32 output)</text>
+  <text x="862" y="492" text-anchor="middle" font-size="9" fill="#777">DOUT = GPIO32 (ESP32 input)</text>
+  <text x="862" y="508" text-anchor="middle" font-size="9" fill="#777">VCC = 3.3 V from ESP32</text>
+  <text x="862" y="520" text-anchor="middle" font-size="9" fill="#006064">24-bit ADC, gain 64 or 128</text>
+
+  <!-- HX711 → Load Cell wire -->
+  <line x1="862" y1="526" x2="862" y2="578"
+        stroke="#006064" stroke-width="2.5"
+        marker-end="url(#arr-teal)"/>
+  <rect x="868" y="541" width="72" height="22" rx="4"
+        fill="#b2ebf2" stroke="#80deea" stroke-width="1"/>
+  <text x="904" y="556" text-anchor="middle" font-size="9" font-weight="bold" fill="#006064">E+ / E− / A+ / A−</text>
+
+  <!-- ─────────────────────── Load Cell ─────────────────────── -->
+  <rect x="775" y="580" width="175" height="80" rx="8"
+        fill="#e8eaf6" stroke="#3949ab" stroke-width="2"/>
+  <text x="862" y="603" text-anchor="middle" font-size="12" font-weight="bold" fill="#283593">Load Cell</text>
+  <text x="862" y="620" text-anchor="middle" font-size="10" fill="#555">Force Sensor (Wheatstone bridge)</text>
+  <text x="862" y="637" text-anchor="middle" font-size="9" fill="#777">4-wire: E+, E−, A+, A−</text>
+  <text x="862" y="652" text-anchor="middle" font-size="9" fill="#777">Measures shear force on specimen</text>
+
+  <!-- ─────────────────────── Legend ─────────────────────── -->
+  <rect x="600" y="580" width="166" height="80" rx="6"
+        fill="white" fill-opacity="0.82" stroke="#bbb" stroke-width="1"/>
+  <text x="683" y="598" text-anchor="middle" font-size="10" font-weight="bold" fill="#333">Legend</text>
+  <line x1="610" y1="610" x2="638" y2="610" stroke="#6a1b9a" stroke-width="2" stroke-dasharray="5,2"/>
+  <text x="645" y="614" font-size="9" fill="#333">USB / serial</text>
+  <line x1="610" y1="624" x2="638" y2="624" stroke="#e65100" stroke-width="2"/>
+  <text x="645" y="628" font-size="9" fill="#333">Stepper control</text>
+  <line x1="610" y1="638" x2="638" y2="638" stroke="#6a1b9a" stroke-width="2"/>
+  <text x="645" y="642" font-size="9" fill="#333">Caliper data</text>
+  <line x1="610" y1="652" x2="638" y2="652" stroke="#006064" stroke-width="2"/>
+  <text x="645" y="656" font-size="9" fill="#333">HX711 / load cell</text>
+
+</svg>
