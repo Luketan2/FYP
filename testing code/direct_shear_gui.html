@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Direct Shear Strain Device</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #f0f2f5;
+      --surface: #ffffff;
+      --border:  #d0d5dd;
+      --primary: #1a56db;
+      --danger:  #c81e1e;
+      --success: #057a55;
+      --text:    #111928;
+      --muted:   #6b7280;
+      --radius:  8px;
+    }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    header h1 { font-size: 1.05rem; font-weight: 700; color: var(--primary); white-space: nowrap; }
+    .conn-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    #status-label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+    #status-label.connected { color: var(--success); }
+    #status-label.error     { color: var(--danger); }
+
+    /* ── Controls ──────────────────────────────────────────────── */
+    select, input[type=number], input[type=text] {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 6px 10px; font-size: 0.875rem;
+      background: var(--surface); color: var(--text); outline: none;
+    }
+    select:focus, input:focus { border-color: var(--primary); }
+    button {
+      border: none; border-radius: var(--radius);
+      padding: 7px 14px; font-size: 0.875rem; font-weight: 600;
+      cursor: pointer; transition: opacity .15s; white-space: nowrap;
+    }
+    button:hover:not(:disabled) { opacity: .82; }
+    button:disabled { opacity: .38; cursor: not-allowed; }
+    .btn-primary   { background: var(--primary); color: #fff; }
+    .btn-danger    { background: var(--danger);  color: #fff; }
+    .btn-success   { background: var(--success); color: #fff; }
+    .btn-secondary { background: #e5e7eb; color: var(--text); }
+
+    /* ── Tabs ──────────────────────────────────────────────────── */
+    .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; }
+    .tab-btn {
+      padding: 10px 22px; border: none; border-bottom: 3px solid transparent;
+      border-radius: 0; background: none; color: var(--muted);
+      font-weight: 600; font-size: 0.875rem; cursor: pointer;
+    }
+    .tab-btn.active { border-bottom-color: var(--primary); color: var(--primary); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* ── Cards ─────────────────────────────────────────────────── */
+    .main { padding: 16px 20px; max-width: 1100px; margin: 0 auto; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; padding: 16px 18px; }
+    .card-title { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .row:last-child { margin-bottom: 0; }
+    label { font-size: 0.875rem; font-weight: 500; white-space: nowrap; }
+    .muted { color: var(--muted); font-size: 0.8rem; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+    /* ── Live reading boxes ─────────────────────────────────────── */
+    .live-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .live-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; }
+    .live-box .lbl { font-size: 0.7rem; color: var(--muted); font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+    .live-box .val { font-size: 1.5rem; font-weight: 700; line-height: 1.15; }
+    .blue { color: var(--primary); }
+    .red  { color: var(--danger); }
+
+    /* ── Big display ────────────────────────────────────────────── */
+    .big-val { font-size: 2.8rem; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 14px; }
+
+    /* ── Chart ──────────────────────────────────────────────────── */
+    .chart-wrap { position: relative; height: 280px; }
+
+    /* ── Dir badge ──────────────────────────────────────────────── */
+    .dir-badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: #e5e7eb; color: var(--text); }
+    .dir-badge.high { background: #dbeafe; color: var(--primary); }
+
+    input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+
+    /* ── Compat warning ─────────────────────────────────────────── */
+    #compat-warn {
+      background: #fef3c7; border: 1px solid #f59e0b; color: #92400e;
+      border-radius: var(--radius); padding: 12px 18px; margin: 16px 20px;
+      font-size: 0.9rem; display: none;
+    }
+
+    /* ── Save folder indicator ──────────────────────────────────── */
+    #save-folder-label { font-size: 0.8rem; color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #save-folder-label.ok { color: var(--success); }
+
+    /* ── File list ──────────────────────────────────────────────── */
+    #file-list { margin-top: 8px; max-height: 280px; overflow-y: auto; padding: 4px 0; }
+    .file-row { display: flex; align-items: center; gap: 7px; padding: 3px 4px; border-radius: 4px; }
+    .file-row:hover { background: var(--bg); }
+    .series-name-input { border: 1px solid transparent; border-radius: 4px; padding: 2px 6px; font-size: 0.83rem; background: transparent; width: 170px; color: var(--text); }
+    .series-name-input:hover, .series-name-input:focus { border-color: var(--border); background: #fff; outline: none; }
+    .file-orig { color: var(--muted); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    input[type=color] { width: 30px; height: 26px; padding: 2px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+
+    /* ── Plots tab layout ───────────────────────────────────────── */
+    .plots-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 14px; }
+    @media (max-width: 860px) { .plots-grid { grid-template-columns: 1fr; } }
+    .overlay-chart-wrap { position: relative; height: 480px; }
+    .chart-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+
+    /* ── Stats table ────────────────────────────────────────────── */
+    .stats-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .stats-table th { text-align: left; padding: 6px 10px; background: var(--bg); border-bottom: 2px solid var(--border); font-size: 0.72rem; text-transform: uppercase; color: var(--muted); letter-spacing: .04em; }
+    .stats-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+    .stats-table tr:last-child td { border-bottom: none; }
+    .series-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- Header                                                        -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<header>
+  <h1>Direct Shear Strain Device</h1>
+  <div class="conn-group">
+    <button class="btn-primary"   id="btn-connect"    onclick="connectSerial()">Connect to ESP</button>
+    <button class="btn-secondary" id="btn-disconnect"  onclick="disconnectSerial()" disabled>Disconnect</button>
+    <select id="baud-sel" title="Baud rate">
+      <option value="115200" selected>115200</option>
+      <option value="9600">9600</option>
+      <option value="57600">57600</option>
+    </select>
+  </div>
+  <span id="status-label">Not connected</span>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+    <button class="btn-secondary" onclick="selectSaveFolder()" title="Choose folder where tests are auto-saved">📁 Save Folder</button>
+    <span id="save-folder-label">No folder selected</span>
+  </div>
+</header>
+
+<div id="compat-warn">
+  ⚠️ Web Serial API not supported. Open this file in <strong>Chrome</strong> or <strong>Edge</strong> (version 89+).
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- Tab bar                                                       -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('shear',   this)">Direct Shear Test</button>
+  <button class="tab-btn"        onclick="switchTab('stepper', this)">Stepper Test</button>
+  <button class="tab-btn"        onclick="switchTab('caliper', this)">Caliper Test</button>
+  <button class="tab-btn"        onclick="switchTab('force',   this)">Force Gauge Test</button>
+  <button class="tab-btn"        onclick="switchTab('plots',   this); refreshFileList()">View Plots</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB 1 — Direct Shear Test                                     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-shear" class="tab-pane active">
+  <div class="main">
+
+    <div class="card">
+      <div class="card-title">Test Setup</div>
+      <div class="row">
+        <label>Speed (mm/min):</label>
+        <input type="number" id="shear-speed" value="1" min="0.001" step="0.1" style="width:100px"/>
+
+        <label style="margin-left:12px">Pitch (mm/rev):</label>
+        <input type="number" id="shear-pitch" value="8" min="0.001" step="0.1" style="width:88px"/>
+
+        <label style="margin-left:12px">SPR:</label>
+        <input type="number" id="shear-spr" value="6400" min="1" style="width:80px"/>
+        <span class="muted">→ RPM = speed ÷ pitch</span>
+
+        <label style="margin-left:12px">Direction:</label>
+        <select id="shear-dir">
+          <option>Forward</option>
+          <option>Reverse</option>
+        </select>
+      </div>
+      <div class="row">
+        <button id="btn-start" class="btn-success" onclick="startTest()" disabled>▶ START TEST</button>
+        <button id="btn-stop"  class="btn-danger"  onclick="stopTest()"  disabled>■ STOP</button>
+        <button class="btn-secondary" onclick="exportCSV()">Export CSV</button>
+        <button class="btn-secondary" onclick="clearData()">Clear Data</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Live Readings</div>
+      <div class="live-grid">
+        <div class="live-box">
+          <div class="lbl">Displacement (step-based)</div>
+          <div class="val blue" id="disp-val">-- mm</div>
+        </div>
+        <div class="live-box">
+          <div class="lbl">Shear Force &nbsp;<button class="btn-secondary" style="font-size:0.7rem;padding:2px 8px" onclick="toggleForceFlip()" title="Flip force sign">Flip ±</button></div>
+          <div class="val red" id="force-shear-val">--</div>
+        </div>
+        <div class="live-box">
+          <div class="lbl">Data Points</div>
+          <div class="val" id="point-count">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Force vs Displacement</div>
+      <div class="chart-wrap"><canvas id="shear-chart"></canvas></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB 2 — Stepper Test                                          -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-stepper" class="tab-pane">
+  <div class="main">
+    <div class="card">
+      <div class="card-title">Stepper Control</div>
+
+      <div class="row">
+        <label>RPM:</label>
+        <input type="number" id="step-rpm" value="10" min="1" style="width:100px"/>
+        <button class="btn-primary" onclick="applyRpm()">Apply RPM</button>
+      </div>
+
+      <div class="row">
+        <label>Steps / Rev (SPR):</label>
+        <input type="number" id="step-spr" value="6400" min="1" style="width:100px"/>
+        <button class="btn-primary" onclick="applySpr()">Apply SPR</button>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <button class="btn-success"   onclick="runForward()">▶ Forward (DIR 0)</button>
+        <button class="btn-primary"   onclick="runBackward()">◀ Backward (DIR 1)</button>
+        <button class="btn-danger"    onclick="stopStepper()">■ STOP</button>
+      </div>
+
+      <p class="muted" style="margin-top:14px">STEP = GPIO16 &nbsp;|&nbsp; DIR = GPIO17</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB 3 — Caliper Test                                          -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-caliper" class="tab-pane">
+  <div class="main">
+    <div class="card">
+      <div class="card-title">Digital Caliper Readout</div>
+      <p class="muted">CLK = GPIO27 &nbsp;|&nbsp; DATA = GPIO26 &nbsp;· updates ~10 Hz when active</p>
+      <div class="big-val blue" id="cal-big">--</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB 4 — Force Gauge Test                                      -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-force" class="tab-pane">
+  <div class="main">
+    <div class="card">
+      <div class="card-title">Load Cell (HX711)</div>
+      <div style="display:flex;align-items:center;gap:14px;margin:6px 0 14px">
+        <div class="big-val red" style="margin:0" id="force-big">--</div>
+        <button class="btn-secondary" onclick="toggleForceFlip()" id="btn-flip" title="Flip force sign" style="font-size:0.85rem">Flip ±</button>
+        <span id="flip-indicator" class="muted">(inverted)</span>
+      </div>
+
+      <div class="row">
+        <label>Display Unit:</label>
+        <select id="force-unit" onchange="onForceSettingsChange()">
+          <option value="N">N</option>
+          <option value="kN">kN</option>
+          <option value="lbf">lbf</option>
+          <option value="kgf">kgf</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <input type="checkbox" id="ma-chk" onchange="onForceSettingsChange()"/>
+        <label for="ma-chk">Moving Average</label>
+        <label style="margin-left:14px">Window (samples):</label>
+        <input type="number" id="ma-win" value="10" min="1" style="width:72px" onchange="onForceSettingsChange()"/>
+        <span class="muted">— larger = more smoothing</span>
+      </div>
+
+      <div class="row">
+        <button class="btn-secondary" onclick="sendCmd('TARE')">Tare (Zero)</button>
+        <button class="btn-secondary" onclick="clearForceHistory()">Clear History</button>
+      </div>
+
+      <hr/>
+
+      <div class="row">
+        <label>Calibration Factor (raw counts / N):</label>
+        <input type="number" id="cal-factor" value="1.0" step="0.001" style="width:120px"/>
+        <button class="btn-secondary" onclick="setCalFactor()">Set Factor</button>
+      </div>
+      <p class="muted" style="margin-top:8px">
+        To calibrate: place a known weight → note the raw reading → factor = raw ÷ weight_N.<br/>
+        HX711: DOUT = GPIO32 &nbsp;|&nbsp; SCK = GPIO33
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Force vs Time</div>
+      <div class="chart-wrap"><canvas id="force-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB 5 — View Plots                                            -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-plots" class="tab-pane">
+  <div class="main">
+
+    <div class="plots-grid">
+
+      <!-- ── Left: file list ──────────────────────────────────── -->
+      <div class="card" style="align-self:start">
+        <div class="card-title">Test Runs</div>
+        <div class="row">
+          <button class="btn-secondary" onclick="selectSaveFolder()">📁 Folder</button>
+          <button class="btn-secondary" onclick="refreshFileList()">↻ Refresh</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <input type="checkbox" id="select-all-chk" onchange="toggleSelectAll(this)" checked/>
+          <label for="select-all-chk" class="muted">Select / deselect all</label>
+        </div>
+        <div id="file-list"><span class="muted">Select a save folder first (📁 Save Folder in the header).</span></div>
+      </div>
+
+      <!-- ── Right: plot options ───────────────────────────────── -->
+      <div class="card" style="align-self:start">
+        <div class="card-title">Plot Options</div>
+
+        <div class="row">
+          <label style="width:72px">Title:</label>
+          <input type="text" id="plot-title" placeholder="e.g. Sample A — 100 N normal load" style="flex:1" oninput="updateChartTitle()"/>
+        </div>
+
+        <div class="row">
+          <label style="width:72px">X label:</label>
+          <input type="text" id="plot-xlabel" value="Displacement (mm)" style="flex:1" oninput="updateAxisLabels()"/>
+        </div>
+        <div class="row">
+          <label style="width:72px">Y label:</label>
+          <input type="text" id="plot-ylabel" value="Shear Force (N)" style="flex:1" oninput="updateAxisLabels()"/>
+        </div>
+
+        <hr/>
+
+        <div class="row">
+          <label style="width:72px">X range:</label>
+          <input type="number" id="x-min" placeholder="auto" style="width:76px" title="X min"/>
+          <span class="muted">to</span>
+          <input type="number" id="x-max" placeholder="auto" style="width:76px" title="X max"/>
+          <label style="margin-left:10px;width:52px">Y range:</label>
+          <input type="number" id="y-min" placeholder="auto" style="width:76px" title="Y min"/>
+          <span class="muted">to</span>
+          <input type="number" id="y-max" placeholder="auto" style="width:76px" title="Y max"/>
+        </div>
+        <div class="row">
+          <button class="btn-secondary" onclick="applyAxisLimits()">Apply Ranges</button>
+          <button class="btn-secondary" onclick="resetAxisLimits()">Reset Ranges</button>
+        </div>
+
+        <hr/>
+
+        <div class="row">
+          <input type="checkbox" id="align-chk"/>
+          <label for="align-chk">Align to contact</label>
+        </div>
+        <div class="row">
+          <label title="Number of points at the start used to estimate the noise baseline">Baseline pts:</label>
+          <input type="number" id="align-baseline-pts" value="20" min="5" max="200" style="width:65px"/>
+          <label style="margin-left:10px" title="How many σ above the baseline mean counts as departure">Threshold (σ):</label>
+          <input type="number" id="align-sigma" value="3" min="0.5" max="10" step="0.5" style="width:60px"/>
+          <label style="margin-left:10px" title="How many consecutive points must exceed threshold to confirm contact">Confirm pts:</label>
+          <input type="number" id="align-confirm" value="5" min="1" max="30" style="width:55px"/>
+        </div>
+        <div class="row">
+          <span class="muted">Baseline mean + threshold×σ must be exceeded for confirm pts in a row to find contact.</span>
+        </div>
+
+        <div class="row">
+          <label>Line width:</label>
+          <input type="number" id="line-width" value="1.8" min="0.5" max="6" step="0.5" style="width:60px"/>
+          <label style="margin-left:10px">Point radius:</label>
+          <input type="number" id="point-radius" value="1.5" min="0" max="8" step="0.5" style="width:60px"/>
+          <input type="checkbox" id="fill-chk" style="margin-left:10px"/>
+          <label for="fill-chk">Fill</label>
+        </div>
+
+        <hr/>
+
+        <div class="row">
+          <button class="btn-primary"   onclick="plotSelected()">▶ Plot Selected</button>
+          <button class="btn-secondary" onclick="clearOverlay()">Clear</button>
+          <button class="btn-secondary" onclick="exportChartPNG()">⬇ PNG</button>
+          <button class="btn-secondary" onclick="exportCombinedCSV()">⬇ CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Chart ──────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="chart-toolbar">
+        <span style="font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Overlay — Force vs Displacement</span>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span class="muted" style="font-size:0.78rem">Scroll = zoom &nbsp;·&nbsp; Drag = pan</span>
+          <button class="btn-secondary" onclick="overlayChart.resetZoom()" title="Fit all data">⤢ Reset Zoom</button>
+        </div>
+      </div>
+      <div class="overlay-chart-wrap"><canvas id="overlay-chart"></canvas></div>
+    </div>
+
+    <!-- ── Stats ─────────────────────────────────────────────── -->
+    <div class="card" id="stats-card" style="display:none">
+      <div class="card-title">Series Statistics</div>
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Series</th>
+            <th>Peak Force (N)</th>
+            <th>Disp. at Peak (mm)</th>
+            <th>X range (mm)</th>
+            <th>Points</th>
+          </tr>
+        </thead>
+        <tbody id="stats-body"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- JavaScript                                                     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── Browser compatibility check ────────────────────────────────────────────
+if (!('serial' in navigator)) {
+  document.getElementById('compat-warn').style.display = 'block';
+  document.getElementById('btn-connect').disabled = true;
+}
+
+// ── Serial state ───────────────────────────────────────────────────────────
+let port       = null;
+let serialWriter = null;
+let serialReader = null;
+
+// ── App state ──────────────────────────────────────────────────────────────
+const s = {
+  connected:    false,
+  rpm:          10,
+  spr:          200,
+  dirState:     0,
+  forceValue:   0,
+  forceFlip:    -1,          // 1 or -1, toggled by Flip button
+  forceUnit:    'N',
+  maEnabled:    false,
+  maWindow:     10,
+  maBuf:        [],
+  forceT0:      null,
+  testRunning:  false,
+  testData:     [],          // [[disp_mm, force_N], ...]
+  testStartTime: null,
+  testSpeedMmMin: 10,        // commanded linear speed in mm/min
+};
+
+const UNIT_CONV = {
+  N:   [1.0,       'N'],
+  kN:  [1e-3,      'kN'],
+  lbf: [0.224809,  'lbf'],
+  kgf: [0.101972,  'kgf'],
+};
+
+// ── Serial connect / disconnect ────────────────────────────────────────────
+async function connectSerial() {
+  try {
+    const baud = parseInt(document.getElementById('baud-sel').value);
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: baud });
+
+    // Keep a persistent writer for the session
+    serialWriter = port.writable.getWriter();
+
+    s.connected = true;
+    setStatus('Connected', 'connected');
+    document.getElementById('btn-connect').disabled    = true;
+    document.getElementById('btn-disconnect').disabled = false;
+    document.getElementById('btn-start').disabled      = false;
+
+    // Initial handshake
+    await sendCmd(`RPM ${s.rpm}`);
+    await sendCmd(`DIR ${s.dirState}`);
+    await sendCmd('STOP');
+
+    // Start read loop (runs until disconnect)
+    readLoop();
+
+  } catch (e) {
+    setStatus('Connection failed: ' + e.message, 'error');
+  }
+}
+
+async function disconnectSerial() {
+  if (s.testRunning) await stopTest();
+  s.connected = false;
+
+  try {
+    if (serialReader) { await serialReader.cancel(); serialReader = null; }
+  } catch (_) {}
+  try {
+    if (serialWriter) { serialWriter.releaseLock(); serialWriter = null; }
+  } catch (_) {}
+  try {
+    if (port) { await port.close(); port = null; }
+  } catch (_) {}
+
+  setStatus('Not connected', '');
+  document.getElementById('btn-connect').disabled    = false;
+  document.getElementById('btn-disconnect').disabled = true;
+  document.getElementById('btn-start').disabled      = true;
+  document.getElementById('btn-stop').disabled       = true;
+}
+
+// ── Read loop (background) ─────────────────────────────────────────────────
+async function readLoop() {
+  const decoder = new TextDecoder();
+  let buf = '';
+  serialReader = port.readable.getReader();
+  try {
+    while (s.connected) {
+      const { value, done } = await serialReader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      // Split on newlines and process complete lines
+      const lines = buf.split('\n');
+      buf = lines.pop();                // keep partial last line
+      for (const line of lines) processLine(line.trim());
+    }
+  } catch (_) {
+    // port closed or cancelled
+  } finally {
+    serialReader.releaseLock();
+    serialReader = null;
+  }
+}
+
+// ── Send command ───────────────────────────────────────────────────────────
+async function sendCmd(cmd) {
+  if (!serialWriter) return;
+  try {
+    await serialWriter.write(new TextEncoder().encode(cmd.trim() + '\n'));
+  } catch (e) {
+    setStatus('Send error: ' + e.message, 'error');
+  }
+}
+
+// ── Parse incoming serial lines ────────────────────────────────────────────
+function processLine(line) {
+  if (!line) return;
+
+  // CAL <value> <unit>
+  if (line.startsWith('CAL ')) {
+    const p = line.split(' ');
+    if (p.length === 3) {
+      document.getElementById('cal-big').textContent = `${p[1]} ${p[2]}`;
+    }
+    return;
+  }
+
+  // FORCE <value> <unit>
+  if (line.startsWith('FORCE ')) {
+    const p = line.split(' ');
+    if (p.length === 3) {
+      const rawN = parseFloat(p[1]);
+      if (isNaN(rawN)) return;
+      s.forceValue = rawN;
+
+      const now = performance.now() / 1000;
+      if (s.forceT0 === null) s.forceT0 = now;
+      const elapsed = now - s.forceT0;
+
+      const dispN  = applyMA(rawN) * s.forceFlip;
+      const [fac, unit] = UNIT_CONV[s.forceUnit];
+      const str    = `${(dispN * fac).toFixed(3)} ${unit}`;
+
+      document.getElementById('force-big').textContent       = str;
+      document.getElementById('force-shear-val').textContent = str;
+
+      pushForcePoint(elapsed, rawN * s.forceFlip * fac, dispN * fac);
+
+      if (s.testRunning) recordShearPoint();
+    }
+  }
+}
+
+// ── Moving average ─────────────────────────────────────────────────────────
+function applyMA(rawN) {
+  if (!s.maEnabled) { s.maBuf = []; return rawN; }
+  s.maBuf.push(rawN);
+  if (s.maBuf.length > s.maWindow) s.maBuf.shift();
+  return s.maBuf.reduce((a, v) => a + v, 0) / s.maBuf.length;
+}
+
+function onForceSettingsChange() {
+  s.forceUnit  = document.getElementById('force-unit').value;
+  s.maEnabled  = document.getElementById('ma-chk').checked;
+  s.maWindow   = Math.max(1, parseInt(document.getElementById('ma-win').value) || 10);
+  s.maBuf      = [];   // reset buffer on any settings change
+}
+
+function clearForceHistory() {
+  s.forceT0 = null;
+  s.maBuf   = [];
+  resetForceChart();
+}
+
+// ── Stepper controls ───────────────────────────────────────────────────────
+async function applyRpm() {
+  s.rpm = parseFloat(document.getElementById('step-rpm').value) || 10;
+  await sendCmd(`RPM ${s.rpm}`);
+}
+async function applySpr() {
+  s.spr = parseFloat(document.getElementById('step-spr').value) || 200;
+  await sendCmd(`SPR ${s.spr}`);
+}
+async function runForward() {
+  await applyRpm();
+  await sendCmd('DIR 0');
+  await sendCmd('RUN 1');
+}
+async function runBackward() {
+  await applyRpm();
+  await sendCmd('DIR 1');
+  await sendCmd('RUN 1');
+}
+async function stopStepper() { await sendCmd('STOP'); }
+
+// ── Force flip ─────────────────────────────────────────────────────────────
+function toggleForceFlip() {
+  s.forceFlip *= -1;
+  const ind = document.getElementById('flip-indicator');
+  if (ind) ind.textContent = s.forceFlip === -1 ? '(inverted)' : '';
+}
+
+// ── Force calibration ──────────────────────────────────────────────────────
+async function setCalFactor() {
+  const f = parseFloat(document.getElementById('cal-factor').value);
+  if (!f || f === 0) { alert('Enter a non-zero calibration factor.'); return; }
+  await sendCmd(`CALFACTOR ${f}`);
+}
+
+// ── Shear test ─────────────────────────────────────────────────────────────
+async function startTest() {
+  const speed = parseFloat(document.getElementById('shear-speed').value) || 10;   // mm/min
+  const pitch = parseFloat(document.getElementById('shear-pitch').value) || 8;    // mm/rev
+  const spr   = parseFloat(document.getElementById('shear-spr').value)   || 200;
+
+  // Sync SPR to global state and send to ESP
+  s.spr = spr;
+  const rpm = speed / pitch;   // RPM = (mm/min) ÷ (mm/rev)
+
+  s.testSpeedMmMin = speed;
+  s.testData       = [];
+  s.testStartTime  = performance.now() / 1000;
+  s.testRunning    = true;
+
+  const dirVal = document.getElementById('shear-dir').value === 'Forward' ? 0 : 1;
+  await sendCmd(`SPR ${spr}`);
+  await sendCmd(`DIR ${dirVal}`);
+  await sendCmd(`RPM ${rpm.toFixed(4)}`);
+  await sendCmd('RUN 1');
+
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-stop').disabled  = false;
+
+  resetShearChart();
+  document.getElementById('point-count').textContent = '0';
+  document.getElementById('disp-val').textContent    = '0.000 mm';
+}
+
+async function stopTest() {
+  s.testRunning = false;
+  await sendCmd('STOP');
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-stop').disabled  = true;
+  await autoSave();
+}
+
+// Displacement = commanded speed (mm/min) × elapsed time (min)
+function recordShearPoint() {
+  const elapsed = (performance.now() / 1000) - s.testStartTime;   // seconds
+  const dispMm  = s.testSpeedMmMin * (elapsed / 60.0);            // mm
+  const force   = s.forceValue * s.forceFlip;
+
+  s.testData.push([dispMm, force]);
+
+  document.getElementById('disp-val').textContent    = dispMm.toFixed(3) + ' mm';
+  document.getElementById('point-count').textContent = s.testData.length;
+
+  pushShearPoint(dispMm, force);
+}
+
+function clearData() {
+  s.testData = [];
+  document.getElementById('disp-val').textContent    = '-- mm';
+  document.getElementById('point-count').textContent = '0';
+  resetShearChart();
+}
+
+function buildCSVContent() {
+  const speed = parseFloat(document.getElementById('shear-speed').value) || 0;
+  const pitch = parseFloat(document.getElementById('shear-pitch').value) || 0;
+  const spr   = parseFloat(document.getElementById('shear-spr').value)   || 0;
+  const dir   = document.getElementById('shear-dir').value;
+  let csv  = `# Speed: ${speed} mm/min | Pitch: ${pitch} mm/rev | SPR: ${spr} | Direction: ${dir}\n`;
+  csv     += `# Saved: ${new Date().toISOString()}\n`;
+  csv     += 'Displacement (mm),Shear Force (N)\n';
+  s.testData.forEach(([d, f]) => csv += `${d.toFixed(4)},${f.toFixed(4)}\n`);
+  return csv;
+}
+
+function exportCSV() {
+  if (!s.testData.length) { alert('No data to export — run a test first.'); return; }
+  const csv  = buildCSVContent();
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `shear_test_${new Date().toISOString().slice(0,19).replace(/[T:]/g, '-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── IndexedDB — persist directory handle across sessions ───────────────────
+const _IDB = {
+  _db: null,
+  async open() {
+    if (this._db) return this._db;
+    return new Promise((res, rej) => {
+      const req = indexedDB.open('shear_gui_v1', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('handles');
+      req.onsuccess  = () => { this._db = req.result; res(req.result); };
+      req.onerror    = () => rej(req.error);
+    });
+  },
+  async put(key, value) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('handles', 'readwrite');
+      tx.objectStore('handles').put(value, key);
+      tx.oncomplete = res; tx.onerror = rej;
+    });
+  },
+  async get(key) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const tx  = db.transaction('handles', 'readonly');
+      const req = tx.objectStore('handles').get(key);
+      req.onsuccess = () => res(req.result);
+      req.onerror   = () => rej(req.error);
+    });
+  },
+};
+
+// ── File System / Auto-save ────────────────────────────────────────────────
+let dirHandle = null;
+
+// Called on page load — restore previously chosen folder from IndexedDB
+async function initSaveFolder() {
+  try {
+    const stored = await _IDB.get('saveDir');
+    if (!stored) return;
+    dirHandle = stored;
+    const perm = await stored.queryPermission({ mode: 'readwrite' });
+    _updateFolderLabel(perm === 'granted' ? '📁 ' + stored.name : '📁 ' + stored.name + ' — click Save Folder to reauthorize');
+  } catch (_) {}
+}
+
+// Called when STOP is pressed (user gesture) — ensures permission before writing
+async function _ensureDirPermission() {
+  if (!dirHandle) return false;
+  const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+  if (perm === 'granted') return true;
+  const newPerm = await dirHandle.requestPermission({ mode: 'readwrite' });
+  return newPerm === 'granted';
+}
+
+function _updateFolderLabel(text, ok = true) {
+  const lbl = document.getElementById('save-folder-label');
+  lbl.textContent = text;
+  lbl.className   = ok ? 'ok' : '';
+}
+
+async function selectSaveFolder() {
+  if (!('showDirectoryPicker' in window)) {
+    alert('File System Access API not supported in this browser.\nUse Chrome or Edge 86+.');
+    return;
+  }
+  try {
+    dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    await _IDB.put('saveDir', dirHandle);   // remember for next session
+    _updateFolderLabel('📁 ' + dirHandle.name);
+    await refreshFileList();
+  } catch (e) {
+    if (e.name !== 'AbortError') alert('Could not open folder: ' + e.message);
+  }
+}
+
+async function autoSave() {
+  if (!s.testData.length) return;
+  if (!dirHandle) {
+    _updateFolderLabel('No folder selected — data not saved', false);
+    return;
+  }
+  const ok = await _ensureDirPermission();
+  if (!ok) { _updateFolderLabel('Permission denied — click Save Folder to reauthorize', false); return; }
+
+  const ts  = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+  const csv = buildCSVContent();
+  try {
+    const fh = await dirHandle.getFileHandle(`shear_test_${ts}.csv`, { create: true });
+    const wr = await fh.createWritable();
+    await wr.write(csv);
+    await wr.close();
+    _updateFolderLabel(`📁 ${dirHandle.name}  ✓ saved ${ts}`);
+  } catch (e) {
+    alert('Auto-save failed: ' + e.message);
+  }
+}
+
+// Restore folder on page load
+initSaveFolder();
+
+// ── View Plots — file list ─────────────────────────────────────────────────
+let _fileEntries = [];   // [{name, handle}]
+
+const OVERLAY_COLORS = [
+  '#1a56db','#c81e1e','#057a55','#9333ea','#f59e0b',
+  '#06b6d4','#ec4899','#84cc16','#f97316','#64748b',
+];
+
+async function refreshFileList() {
+  const container = document.getElementById('file-list');
+  if (!dirHandle) {
+    container.innerHTML = '<span class="muted">Select a save folder first.</span>';
+    return;
+  }
+  _fileEntries = [];
+  try {
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (name.toLowerCase().endsWith('.csv')) _fileEntries.push({ name, handle });
+    }
+  } catch (e) {
+    container.innerHTML = `<span class="muted">Error: ${e.message}</span>`;
+    return;
+  }
+  _fileEntries.sort((a, b) => a.name.localeCompare(b.name));
+  if (!_fileEntries.length) {
+    container.innerHTML = '<span class="muted">No CSV files found in this folder.</span>';
+    return;
+  }
+  container.innerHTML = _fileEntries.map((e, i) => {
+    const color     = OVERLAY_COLORS[i % OVERLAY_COLORS.length];
+    const shortName = e.name.replace(/^shear_test_/, '').replace(/\.csv$/i, '');
+    return `<div class="file-row">
+      <input type="checkbox" data-idx="${i}" checked/>
+      <input type="color" class="series-color" data-idx="${i}" value="${color}" title="Series colour"/>
+      <input type="text"  class="series-name-input" data-idx="${i}" value="${shortName}" placeholder="series name" title="Display name"/>
+      <span class="file-orig">${e.name}</span>
+    </div>`;
+  }).join('');
+}
+
+function toggleSelectAll(masterCb) {
+  document.querySelectorAll('#file-list input[type=checkbox]')
+    .forEach(cb => cb.checked = masterCb.checked);
+}
+
+// ── View Plots — overlay chart ─────────────────────────────────────────────
+async function plotSelected() {
+  const checkboxes = document.querySelectorAll('#file-list input[type=checkbox]');
+  const selected   = [];
+  checkboxes.forEach(cb => {
+    if (!cb.checked) return;
+    const idx     = +cb.dataset.idx;
+    const nameEl  = document.querySelector(`.series-name-input[data-idx="${idx}"]`);
+    const colorEl = document.querySelector(`.series-color[data-idx="${idx}"]`);
+    selected.push({
+      entry: _fileEntries[idx],
+      name:  (nameEl  && nameEl.value.trim())  || _fileEntries[idx].name,
+      color: (colorEl && colorEl.value)        || OVERLAY_COLORS[idx % OVERLAY_COLORS.length],
+    });
+  });
+  if (!selected.length) { alert('Check at least one file.'); return; }
+
+  const doAlign     = document.getElementById('align-chk').checked;
+  const baselinePts = Math.max(5,  parseInt(document.getElementById('align-baseline-pts').value) || 20);
+  const sigmaK      = Math.max(0.5, parseFloat(document.getElementById('align-sigma').value)      || 3);
+  const confirmPts  = Math.max(1,  parseInt(document.getElementById('align-confirm').value)       || 5);
+  const lineWidth  = parseFloat(document.getElementById('line-width').value)   || 1.8;
+  const ptRadius   = parseFloat(document.getElementById('point-radius').value);
+  const doFill     = document.getElementById('fill-chk').checked;
+
+  overlayChart.data.datasets = [];
+  const statsRows = [];
+
+  for (const { entry, name, color } of selected) {
+    const file = await entry.handle.getFile();
+    const text = await file.text();
+    let data   = parseCSVData(text);
+    if (!data.length) continue;
+    if (doAlign) data = alignToContact(data, baselinePts, sigmaK, confirmPts);
+
+    // Stats
+    let peakF = -Infinity, peakX = 0;
+    for (const [x, y] of data) { if (y > peakF) { peakF = y; peakX = x; } }
+    const xMin = data[0][0], xMax = data[data.length - 1][0];
+    statsRows.push({ name, color, peakF, peakX, xRange: xMax - xMin, n: data.length });
+
+    const hex2rgba = (hex, a) => {
+      const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+      return `rgba(${r},${g},${b},${a})`;
+    };
+
+    overlayChart.data.datasets.push({
+      label:           name,
+      data:            data.map(([x, y]) => ({ x, y })),
+      borderColor:     color,
+      backgroundColor: doFill ? hex2rgba(color, 0.08) : 'transparent',
+      pointRadius:     ptRadius,
+      borderWidth:     lineWidth,
+      tension:         0.1,
+      fill:            doFill,
+    });
+  }
+
+  overlayChart.update();
+  overlayChart.resetZoom();
+  applyAxisLimits();
+  showStats(statsRows);
+}
+
+function clearOverlay() {
+  overlayChart.data.datasets = [];
+  overlayChart.update();
+  document.getElementById('stats-card').style.display = 'none';
+}
+
+// ── Axis controls ──────────────────────────────────────────────────────────
+function applyAxisLimits() {
+  const v = id => document.getElementById(id).value;
+  const sc = overlayChart.options.scales;
+  sc.x.min = v('x-min') !== '' ? parseFloat(v('x-min')) : undefined;
+  sc.x.max = v('x-max') !== '' ? parseFloat(v('x-max')) : undefined;
+  sc.y.min = v('y-min') !== '' ? parseFloat(v('y-min')) : undefined;
+  sc.y.max = v('y-max') !== '' ? parseFloat(v('y-max')) : undefined;
+  overlayChart.update();
+}
+
+function resetAxisLimits() {
+  ['x-min','x-max','y-min','y-max'].forEach(id => document.getElementById(id).value = '');
+  const sc = overlayChart.options.scales;
+  sc.x.min = sc.x.max = sc.y.min = sc.y.max = undefined;
+  overlayChart.resetZoom();
+  overlayChart.update();
+}
+
+function updateChartTitle() {
+  const t = document.getElementById('plot-title').value.trim();
+  overlayChart.options.plugins.title.display = !!t;
+  overlayChart.options.plugins.title.text    = t;
+  overlayChart.update('none');
+}
+
+function updateAxisLabels() {
+  overlayChart.options.scales.x.title.text = document.getElementById('plot-xlabel').value;
+  overlayChart.options.scales.y.title.text = document.getElementById('plot-ylabel').value;
+  overlayChart.update('none');
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+function exportChartPNG() {
+  if (!overlayChart.data.datasets.length) { alert('Nothing plotted yet.'); return; }
+  const slug = (document.getElementById('plot-title').value.trim() || 'overlay')
+               .replace(/[^a-z0-9_-]/gi, '_');
+  const a = document.createElement('a');
+  a.href     = overlayChart.toBase64Image('image/png', 1.0);
+  a.download = `${slug}_${new Date().toISOString().slice(0,10)}.png`;
+  a.click();
+}
+
+async function exportCombinedCSV() {
+  const ds = overlayChart.data.datasets;
+  if (!ds.length) { alert('Nothing plotted yet.'); return; }
+  const header = ds.map(d => `Displacement_${d.label} (mm),Force_${d.label} (N)`).join(',');
+  const maxLen = Math.max(...ds.map(d => d.data.length));
+  let csv = `# Combined overlay export — ${new Date().toISOString()}\n${header}\n`;
+  for (let i = 0; i < maxLen; i++) {
+    csv += ds.map(d => {
+      const pt = d.data[i];
+      return pt ? `${pt.x.toFixed(4)},${pt.y.toFixed(4)}` : ',';
+    }).join(',') + '\n';
+  }
+  const slug = (document.getElementById('plot-title').value.trim() || 'combined')
+               .replace(/[^a-z0-9_-]/gi, '_');
+  const a = document.createElement('a');
+  a.href     = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `${slug}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Statistics table ───────────────────────────────────────────────────────
+function showStats(rows) {
+  const card = document.getElementById('stats-card');
+  if (!rows.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  document.getElementById('stats-body').innerHTML = rows.map(r => `
+    <tr>
+      <td><span class="series-dot" style="background:${r.color}"></span>${r.name}</td>
+      <td>${r.peakF.toFixed(3)}</td>
+      <td>${r.peakX.toFixed(3)}</td>
+      <td>${r.xRange.toFixed(3)}</td>
+      <td>${r.n}</td>
+    </tr>`).join('');
+}
+
+function parseCSVData(text) {
+  const data = [];
+  const lines = text.split('\n');
+  let headerSkipped = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    if (!headerSkipped) { headerSkipped = true; continue; }   // skip column header row
+    const parts = line.split(',');
+    if (parts.length < 2) continue;
+    const x = parseFloat(parts[0]);
+    const y = parseFloat(parts[1]);
+    if (!isNaN(x) && !isNaN(y)) data.push([x, y]);
+  }
+  return data;
+}
+
+// ── Contact alignment: statistical baseline change-point detection ─────────
+//
+// Algorithm:
+//   1. Take the first `baselinePts` force values to build a noise model
+//      (mean μ and standard deviation σ).
+//   2. Scan forward from there. At each point i, check if the force is
+//      above μ + sigmaK×σ.
+//   3. The first index where `confirmPts` consecutive points all exceed that
+//      threshold is declared the contact point → shift x so that point = 0.
+//
+// This detects when the signal persistently leaves its noise floor regardless
+// of how steep or flat the curve is.
+function alignToContact(data, baselinePts = 20, sigmaK = 3, confirmPts = 5) {
+  if (data.length < baselinePts + confirmPts) {
+    // Not enough data — just align to first point
+    return data.map(([x, y]) => [x - data[0][0], y]);
+  }
+
+  // Build baseline from first `baselinePts` force values
+  const baseline = data.slice(0, baselinePts).map(d => d[1]);
+  const mu  = baseline.reduce((a, v) => a + v, 0) / baseline.length;
+  const sigma = Math.sqrt(
+    baseline.reduce((a, v) => a + (v - mu) ** 2, 0) / baseline.length
+  );
+  const threshold = mu + sigmaK * (sigma || 1e-6);  // guard against σ=0
+
+  // Scan for `confirmPts` consecutive points above threshold
+  let run = 0;
+  for (let i = baselinePts; i < data.length; i++) {
+    if (data[i][1] > threshold) {
+      run++;
+      if (run >= confirmPts) {
+        // Contact found at start of this run
+        const contactIdx = i - confirmPts + 1;
+        const xOffset    = data[contactIdx][0];
+        return data.map(([x, y]) => [x - xOffset, y]);
+      }
+    } else {
+      run = 0;  // reset if we dip back below threshold
+    }
+  }
+
+  // Fallback: no clear contact found — align to first point
+  return data.map(([x, y]) => [x - data[0][0], y]);
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Status bar ─────────────────────────────────────────────────────────────
+function setStatus(msg, cls) {
+  const el = document.getElementById('status-label');
+  el.textContent = msg;
+  el.className   = cls || '';
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+const shearChart = new Chart(
+  document.getElementById('shear-chart').getContext('2d'), {
+    type: 'line',
+    data: { datasets: [{
+      label: 'Shear Force',
+      data:  [],
+      borderColor:     '#1a56db',
+      backgroundColor: 'rgba(26,86,219,.07)',
+      pointRadius: 2,
+      borderWidth: 1.5,
+      tension: 0.1,
+      fill: true,
+    }]},
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false,
+      parsing: { xAxisKey: 'x', yAxisKey: 'y' },
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Displacement (mm)' } },
+        y: { title: { display: true, text: 'Shear Force (N)' } },
+      },
+      plugins: { legend: { display: false } },
+    }
+  }
+);
+
+const forceChart = new Chart(
+  document.getElementById('force-chart').getContext('2d'), {
+    type: 'line',
+    data: { datasets: [
+      { label: 'Raw',      data: [], borderColor: '#cccccc', pointRadius: 0, borderWidth: 1 },
+      { label: 'Filtered', data: [], borderColor: '#c81e1e', pointRadius: 0, borderWidth: 1.5 },
+    ]},
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false,
+      parsing: { xAxisKey: 'x', yAxisKey: 'y' },
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Time (s)' } },
+        y: { title: { display: true, text: 'Force' } },
+      },
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } },
+    }
+  }
+);
+
+const MAX_FORCE_PTS = 600;
+
+function pushShearPoint(x, y) {
+  shearChart.data.datasets[0].data.push({ x, y });
+  shearChart.update('none');
+}
+
+function pushForcePoint(elapsed, raw, filtered) {
+  const [rawDs, filtDs] = forceChart.data.datasets;
+  rawDs.data.push({ x: elapsed, y: raw });
+  filtDs.data.push({ x: elapsed, y: filtered });
+  if (rawDs.data.length > MAX_FORCE_PTS) { rawDs.data.shift(); filtDs.data.shift(); }
+  forceChart.update('none');
+}
+
+function resetShearChart() {
+  shearChart.data.datasets[0].data = [];
+  shearChart.update('none');
+}
+
+function resetForceChart() {
+  forceChart.data.datasets.forEach(ds => ds.data = []);
+  forceChart.update('none');
+}
+
+const overlayChart = new Chart(
+  document.getElementById('overlay-chart').getContext('2d'), {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      responsive:          true,
+      maintainAspectRatio: false,
+      parsing: { xAxisKey: 'x', yAxisKey: 'y' },
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Displacement (mm)' } },
+        y: { title: { display: true, text: 'Shear Force (N)' } },
+      },
+      plugins: {
+        title: {
+          display: false,
+          text:    '',
+          font:    { size: 15, weight: 'bold' },
+          padding: { bottom: 12 },
+        },
+        legend: {
+          position: 'top',
+          labels:   { boxWidth: 12, font: { size: 11 }, usePointStyle: true },
+        },
+        tooltip: { mode: 'index', intersect: false },
+        zoom: {
+          zoom: {
+            wheel:     { enabled: true },
+            pinch:     { enabled: true },
+            mode:      'xy',
+          },
+          pan: {
+            enabled:   true,
+            mode:      'xy',
+          },
+        },
+      },
+    }
+  }
+);
+</script>
+</body>
+</html>

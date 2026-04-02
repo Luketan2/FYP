@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Direct Shear Strain Device</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #f0f2f5;
+      --surface: #ffffff;
+      --border:  #d0d5dd;
+      --primary: #1a56db;
+      --danger:  #c81e1e;
+      --success: #057a55;
+      --warn:    #92400e;
+      --text:    #111928;
+      --muted:   #6b7280;
+      --radius:  8px;
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--primary);
+      white-space: nowrap;
+    }
+    .conn-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    #status-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-left: 4px;
+    }
+    #status-label.connected { color: var(--success); }
+
+    /* ── Common controls ─────────────────────────────────────────── */
+    select, input[type=text], input[type=number] {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      font-size: 0.875rem;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+    }
+    select:focus, input:focus { border-color: var(--primary); }
+    button {
+      border: none;
+      border-radius: var(--radius);
+      padding: 7px 14px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+      white-space: nowrap;
+    }
+    button:hover:not(:disabled) { opacity: .82; }
+    button:disabled { opacity: .38; cursor: not-allowed; }
+    .btn-primary   { background: var(--primary); color: #fff; }
+    .btn-danger    { background: var(--danger);  color: #fff; }
+    .btn-success   { background: var(--success); color: #fff; }
+    .btn-secondary { background: #e5e7eb; color: var(--text); }
+
+    /* ── Tabs ────────────────────────────────────────────────────── */
+    .tabs {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      display: flex;
+      gap: 0;
+    }
+    .tab-btn {
+      padding: 10px 22px;
+      border: none;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      background: none;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .tab-btn.active { border-bottom-color: var(--primary); color: var(--primary); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── Cards ───────────────────────────────────────────────────── */
+    .main-content { padding: 16px 20px; max-width: 1100px; margin: 0 auto; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 14px;
+      padding: 16px 18px;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 14px;
+    }
+    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .row:last-child { margin-bottom: 0; }
+    label { font-size: 0.875rem; font-weight: 500; white-space: nowrap; }
+    .muted { color: var(--muted); font-size: 0.8rem; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+    /* ── Live readings grid ──────────────────────────────────────── */
+    .live-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .live-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+    }
+    .live-box .lbl { font-size: 0.72rem; color: var(--muted); font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+    .live-box .val { font-size: 1.55rem; font-weight: 700; line-height: 1.1; }
+    .blue { color: var(--primary); }
+    .red  { color: var(--danger); }
+
+    /* ── Big display (caliper / force tabs) ──────────────────────── */
+    .big-val { font-size: 2.8rem; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 14px; }
+
+    /* ── Chart ───────────────────────────────────────────────────── */
+    .chart-wrap { position: relative; height: 280px; }
+
+    /* ── Dir badge ───────────────────────────────────────────────── */
+    .dir-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: #e5e7eb;
+      color: var(--text);
+    }
+    .dir-badge.high { background: #dbeafe; color: var(--primary); }
+
+    /* ── Checkbox ────────────────────────────────────────────────── */
+    input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- Header / connection bar                                        -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<header>
+  <h1>Direct Shear Strain Device</h1>
+  <div class="conn-group">
+    <label for="port-sel">Port:</label>
+    <select id="port-sel" style="width:130px"></select>
+    <button class="btn-secondary" onclick="refreshPorts()">Refresh</button>
+    <button class="btn-primary"   onclick="connect()">Connect</button>
+    <button class="btn-secondary" onclick="disconnect()">Disconnect</button>
+  </div>
+  <span id="status-label">Not connected</span>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- Tab bar                                                        -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('shear',   this)">Direct Shear Test</button>
+  <button class="tab-btn"        onclick="switchTab('stepper', this)">Stepper Test</button>
+  <button class="tab-btn"        onclick="switchTab('caliper', this)">Caliper Test</button>
+  <button class="tab-btn"        onclick="switchTab('force',   this)">Force Gauge Test</button>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB 1 — Direct Shear Test                                     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-shear" class="tab-content active">
+  <div class="main-content">
+
+    <div class="card">
+      <div class="card-title">Test Setup</div>
+      <div class="row">
+        <label>Shear Rate (RPM):</label>
+        <input type="number" id="shear-rpm" value="10" min="1" style="width:88px"/>
+
+        <label style="margin-left:12px">Direction:</label>
+        <select id="shear-dir">
+          <option>Forward</option>
+          <option>Reverse</option>
+        </select>
+
+        <label style="margin-left:12px">Steps / mm:</label>
+        <input type="number" id="shear-spmm" value="100" min="0.001" step="0.1" style="width:100px"/>
+        <span class="muted">(SPR × microstep ÷ lead screw pitch)</span>
+
+        <button id="start-btn" class="btn-success" onclick="startTest()" style="margin-left:16px">▶ START TEST</button>
+        <button id="stop-btn"  class="btn-danger"  onclick="stopTest()"  disabled>■ STOP</button>
+        <button class="btn-secondary" onclick="exportCSV()">Export CSV</button>
+        <button class="btn-secondary" onclick="clearData()">Clear Data</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Live Readings</div>
+      <div class="live-grid">
+        <div class="live-box">
+          <div class="lbl">Displacement (step-based)</div>
+          <div class="val blue" id="disp-val">-- mm</div>
+        </div>
+        <div class="live-box">
+          <div class="lbl">Shear Force</div>
+          <div class="val red" id="force-shear-val">--</div>
+        </div>
+        <div class="live-box">
+          <div class="lbl">Data Points</div>
+          <div class="val" id="point-count">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Force vs Displacement</div>
+      <div class="chart-wrap">
+        <canvas id="shear-chart"></canvas>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB 2 — Stepper Test                                          -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-stepper" class="tab-content">
+  <div class="main-content">
+    <div class="card">
+      <div class="card-title">Stepper Control</div>
+
+      <div class="row">
+        <label>RPM:</label>
+        <input type="number" id="step-rpm" value="10" min="1" style="width:100px"/>
+        <button class="btn-primary" onclick="applyRpm()">Apply RPM</button>
+      </div>
+
+      <div class="row">
+        <label>Steps / Rev:</label>
+        <input type="number" id="step-spr" value="200" min="1" style="width:100px"/>
+        <button class="btn-primary" onclick="applySpr()">Apply SPR</button>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <span class="dir-badge" id="dir-badge">DIR: LOW (0)</span>
+        <button class="btn-secondary" onclick="toggleDir()">Toggle DIR</button>
+        <button class="btn-success"   onclick="runStepper()" style="margin-left:8px">RUN</button>
+        <button class="btn-danger"    onclick="stopStepper()">STOP</button>
+      </div>
+
+      <p class="muted" style="margin-top:14px">STEP = GPIO16 &nbsp;|&nbsp; DIR = GPIO17</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB 3 — Caliper Test                                          -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-caliper" class="tab-content">
+  <div class="main-content">
+    <div class="card">
+      <div class="card-title">Digital Caliper Readout</div>
+      <p class="muted">CLK = GPIO27 &nbsp;|&nbsp; DATA = GPIO26 &nbsp;· updates ~10 Hz</p>
+      <div class="big-val blue" id="cal-big">--</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB 4 — Force Gauge Test                                      -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-force" class="tab-content">
+  <div class="main-content">
+    <div class="card">
+      <div class="card-title">Load Cell (HX711)</div>
+      <div class="big-val red" id="force-big">--</div>
+
+      <div class="row">
+        <label>Display Unit:</label>
+        <select id="force-unit" onchange="applyForceSettings()">
+          <option>N</option>
+          <option>kN</option>
+          <option>lbf</option>
+          <option>kgf</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <input type="checkbox" id="ma-chk" onchange="applyForceSettings()"/>
+        <label for="ma-chk">Moving Average</label>
+        <label style="margin-left:14px">Window (samples):</label>
+        <input type="number" id="ma-win" value="10" min="1" style="width:72px" onchange="applyForceSettings()"/>
+        <span class="muted">— larger = more smoothing</span>
+      </div>
+
+      <div class="row">
+        <button class="btn-secondary" onclick="tare()">Tare (Zero)</button>
+        <button class="btn-secondary" onclick="clearForceHistory()">Clear History</button>
+      </div>
+
+      <hr/>
+
+      <div class="row">
+        <label>Calibration Factor (raw counts / N):</label>
+        <input type="number" id="cal-factor" value="1.0" step="0.001" style="width:120px"/>
+        <button class="btn-secondary" onclick="setCalFactor()">Set Factor</button>
+      </div>
+      <p class="muted" style="margin-top:8px">
+        To calibrate: place a known weight → note the raw reading → factor = raw ÷ weight_N.<br/>
+        HX711: DOUT = GPIO32 &nbsp;|&nbsp; SCK = GPIO33
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Force vs Time</div>
+      <div class="chart-wrap">
+        <canvas id="force-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- JavaScript                                                     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<script>
+// ── Socket.IO ──────────────────────────────────────────────────────────────
+const socket = io();
+
+socket.on('status',  d => setStatus(d.status));
+
+socket.on('caliper', d => {
+  document.getElementById('cal-big').textContent = d.str;
+});
+
+socket.on('force', d => {
+  document.getElementById('force-big').textContent       = d.str;
+  document.getElementById('force-shear-val').textContent = d.str;
+  pushForcePoint(d.elapsed, d.raw, d.display);
+});
+
+socket.on('test_point', d => {
+  document.getElementById('disp-val').textContent    = d.displacement.toFixed(3) + ' mm';
+  document.getElementById('point-count').textContent = d.count;
+  pushShearPoint(d.displacement, d.force);
+});
+
+socket.on('test_status', d => {
+  document.getElementById('start-btn').disabled = d.running;
+  document.getElementById('stop-btn').disabled  = !d.running;
+});
+
+socket.on('test_clear', () => {
+  resetShearChart();
+});
+
+socket.on('dir', d => updateDirBadge(d.dir));
+
+socket.on('error', d => console.error('Serial error:', d.msg));
+
+// ── Status helper ──────────────────────────────────────────────────────────
+function setStatus(s) {
+  const el = document.getElementById('status-label');
+  el.textContent = s;
+  el.className   = s.startsWith('Connected') ? 'connected' : '';
+}
+
+// ── Connection ─────────────────────────────────────────────────────────────
+async function refreshPorts() {
+  const r   = await fetch('/api/ports').then(r => r.json());
+  const sel = document.getElementById('port-sel');
+  sel.innerHTML = '';
+  for (const p of r.ports) {
+    const o = document.createElement('option');
+    o.value = o.textContent = p;
+    sel.appendChild(o);
+  }
+}
+
+async function connect() {
+  const port = document.getElementById('port-sel').value;
+  const r    = await post('/api/connect', { port });
+  if (!r.ok) alert('Connection failed: ' + r.error);
+}
+
+async function disconnect() {
+  await post('/api/disconnect');
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Stepper ────────────────────────────────────────────────────────────────
+async function applyRpm() {
+  await post('/api/stepper/rpm', { rpm: parseFloat(document.getElementById('step-rpm').value) });
+}
+async function applySpr() {
+  await post('/api/stepper/spr', { spr: parseFloat(document.getElementById('step-spr').value) });
+}
+async function toggleDir() {
+  const r = await post('/api/stepper/dir');
+  updateDirBadge(r.dir);
+}
+function updateDirBadge(dir) {
+  const el = document.getElementById('dir-badge');
+  el.textContent = dir ? 'DIR: HIGH (1)' : 'DIR: LOW (0)';
+  el.className   = dir ? 'dir-badge high' : 'dir-badge';
+}
+async function runStepper()  { await post('/api/stepper/run'); }
+async function stopStepper() { await post('/api/stepper/stop'); }
+
+// ── Force settings ─────────────────────────────────────────────────────────
+async function applyForceSettings() {
+  await post('/api/force/settings', {
+    unit:       document.getElementById('force-unit').value,
+    ma_enabled: document.getElementById('ma-chk').checked,
+    ma_window:  parseInt(document.getElementById('ma-win').value) || 10,
+  });
+}
+async function tare() { await post('/api/force/tare'); }
+async function clearForceHistory() {
+  await post('/api/force/clear');
+  resetForceChart();
+}
+async function setCalFactor() {
+  const f = parseFloat(document.getElementById('cal-factor').value);
+  if (!f || f === 0) { alert('Enter a non-zero calibration factor.'); return; }
+  const r = await post('/api/force/calfactor', { factor: f });
+  if (!r.ok) alert('Error: ' + r.error);
+}
+
+// ── Shear test ─────────────────────────────────────────────────────────────
+async function startTest() {
+  const r = await post('/api/shear/start', {
+    rpm:          parseFloat(document.getElementById('shear-rpm').value),
+    direction:    document.getElementById('shear-dir').value,
+    steps_per_mm: parseFloat(document.getElementById('shear-spmm').value),
+  });
+  if (!r.ok) alert('Error: ' + r.error);
+}
+async function stopTest()  { await post('/api/shear/stop'); }
+async function clearData() {
+  await post('/api/shear/clear');
+  document.getElementById('disp-val').textContent    = '-- mm';
+  document.getElementById('point-count').textContent = '0';
+}
+function exportCSV() { window.location.href = '/api/shear/export'; }
+
+// ── Charts (Chart.js) ──────────────────────────────────────────────────────
+const shearChart = new Chart(
+  document.getElementById('shear-chart').getContext('2d'),
+  {
+    type: 'line',
+    data: {
+      datasets: [{
+        label: 'Shear Force',
+        data:  [],
+        borderColor:            '#1a56db',
+        backgroundColor:        'rgba(26,86,219,.07)',
+        pointRadius:            2,
+        borderWidth:            1.5,
+        tension:                0.1,
+        fill:                   true,
+      }]
+    },
+    options: {
+      animation:            false,
+      responsive:           true,
+      maintainAspectRatio:  false,
+      parsing:              { xAxisKey: 'x', yAxisKey: 'y' },
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Displacement (mm)' } },
+        y: { title: { display: true, text: 'Shear Force (N)' } },
+      },
+      plugins: { legend: { display: false } },
+    }
+  }
+);
+
+const forceChart = new Chart(
+  document.getElementById('force-chart').getContext('2d'),
+  {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label:       'Raw',
+          data:        [],
+          borderColor: '#cccccc',
+          pointRadius: 0,
+          borderWidth: 1,
+        },
+        {
+          label:       'Filtered',
+          data:        [],
+          borderColor: '#c81e1e',
+          pointRadius: 0,
+          borderWidth: 1.5,
+        },
+      ]
+    },
+    options: {
+      animation:           false,
+      responsive:          true,
+      maintainAspectRatio: false,
+      parsing:             { xAxisKey: 'x', yAxisKey: 'y' },
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Time (s)' } },
+        y: { title: { display: true, text: 'Force (N)' } },
+      },
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } },
+    }
+  }
+);
+
+const MAX_FORCE_PTS = 600;
+
+function pushShearPoint(x, y) {
+  shearChart.data.datasets[0].data.push({ x, y });
+  shearChart.update('none');
+}
+
+function pushForcePoint(elapsed, raw, filtered) {
+  const [rawDs, filtDs] = forceChart.data.datasets;
+  rawDs.data.push({ x: elapsed, y: raw });
+  filtDs.data.push({ x: elapsed, y: filtered });
+  if (rawDs.data.length > MAX_FORCE_PTS) {
+    rawDs.data.shift();
+    filtDs.data.shift();
+  }
+  forceChart.update('none');
+}
+
+function resetShearChart() {
+  shearChart.data.datasets[0].data = [];
+  shearChart.update('none');
+}
+
+function resetForceChart() {
+  forceChart.data.datasets.forEach(ds => ds.data = []);
+  forceChart.update('none');
+}
+
+// ── Utility fetch wrapper ──────────────────────────────────────────────────
+async function post(url, body) {
+  const r = await fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body || {}),
+  });
+  return r.json();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+refreshPorts();
+</script>
+</body>
+</html>
