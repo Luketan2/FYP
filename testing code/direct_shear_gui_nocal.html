@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Direct Shear Strain Device</title>
+  <title>Direct Shear — NO CAL</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
@@ -317,7 +317,6 @@
   <button class="tab-btn active" onclick="switchTab('shear',   this)">Direct Shear Test</button>
   <button class="tab-btn"        onclick="switchTab('stepper', this)">Stepper Test</button>
   <button class="tab-btn"        onclick="switchTab('force',   this)">Force Gauge Test</button>
-  <button class="tab-btn"        onclick="switchTab('cal',this);initCalChart();refreshCalFileList();if(!document.getElementById('cal-date').value)document.getElementById('cal-date').value=new Date().toISOString().slice(0,10)">Load Cell Cal</button>
   <button class="tab-btn"        onclick="switchTab('plots',   this); refreshFileList()">View Plots</button>
 </div>
 
@@ -466,16 +465,15 @@
 
       <hr/>
 
-      <div style="margin-top:8px">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <div>
-            <div style="font-size:0.82rem;font-weight:600;margin-bottom:3px">Active Calibration</div>
-            <div id="hx711-cal-status" style="font-size:0.875rem;color:var(--muted)">No calibration active — raw counts passed through as-is</div>
-          </div>
-          <button class="btn-secondary" onclick="switchTab('cal',document.querySelector('.tab-btn:nth-child(4)'));initCalChart();refreshCalFileList();" style="font-size:0.8rem;white-space:nowrap">⚙ Manage Cal</button>
-        </div>
-        <p class="muted" style="margin-top:8px">HX711: DOUT = GPIO32 &nbsp;|&nbsp; SCK = GPIO33</p>
+      <div class="row">
+        <label>Calibration Factor (raw counts / N):</label>
+        <input type="number" id="cal-factor" value="1.0" step="0.001" style="width:120px"/>
+        <button class="btn-secondary" onclick="setCalFactor()">Set Factor</button>
       </div>
+      <p class="muted" style="margin-top:8px">
+        To calibrate: place a known weight → note the raw reading → factor = raw ÷ weight_N.<br/>
+        HX711: DOUT = GPIO32 &nbsp;|&nbsp; SCK = GPIO33
+      </p>
     </div>
 
     <div class="card">
@@ -486,140 +484,7 @@
 </div>
 
 
-<!-- ══════════════════════════════════════════════════════════════ -->
-<!-- TAB 5 — Load Cell Calibration                                 -->
-<!-- ══════════════════════════════════════════════════════════════ -->
-<div id="tab-cal" class="tab-pane">
-  <div class="main" style="max-width:900px">
-
-    <!-- ── Saved Calibrations ──────────────────────────────────────── -->
-    <div class="card">
-      <div class="card-title">Saved Calibrations</div>
-      <div class="row">
-        <select id="cal-file-sel" style="flex:1;min-width:0">
-          <option value="">— select a saved calibration —</option>
-        </select>
-        <button class="btn-secondary" onclick="refreshCalFileList()" title="Refresh list">↻</button>
-        <button class="btn-primary"   onclick="loadSelectedCalFile()">Load</button>
-        <button class="btn-success"   onclick="activateLoadedCal()" id="btn-activate-cal" disabled title="Load a file first">Activate</button>
-      </div>
-      <p id="cal-loaded-label" style="font-size:0.8rem;color:var(--success);margin-top:6px;display:none"></p>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-        <span id="cal-active-status" style="font-size:0.85rem;color:var(--muted)">No calibration active — raw counts passed through as-is</span>
-        <button id="btn-clear-gui-cal" class="btn-secondary" onclick="clearGuiCal()" style="font-size:0.78rem;padding:3px 8px;display:none">✕ Clear</button>
-      </div>
-    </div>
-
-    <!-- ── Calibration Info ────────────────────────────────────────── -->
-    <div class="card">
-      <div class="card-title">Calibration Info</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 18px">
-        <div>
-          <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:3px">Calibration Name</label>
-          <input type="text" id="cal-name" placeholder="e.g. HX711_A_2026-04" style="width:100%"/>
-        </div>
-        <div>
-          <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:3px">Load Cell ID / Serial</label>
-          <input type="text" id="cal-lc-id" placeholder="e.g. LC-001" style="width:100%"/>
-        </div>
-        <div>
-          <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:3px">Operator</label>
-          <input type="text" id="cal-operator" placeholder="Name" style="width:100%"/>
-        </div>
-        <div>
-          <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:3px">Temperature (°C)</label>
-          <input type="number" id="cal-temperature" placeholder="22" step="0.5" style="width:100%"/>
-        </div>
-        <div>
-          <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:3px">Date</label>
-          <input type="date" id="cal-date" style="width:100%"/>
-        </div>
-        <div>
-          <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:3px">Max Range (N)</label>
-          <input type="number" id="cal-max-range" placeholder="e.g. 500" min="0" step="1" style="width:100%"/>
-        </div>
-        <div style="grid-column:1/-1">
-          <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:3px">Notes</label>
-          <textarea id="cal-notes" placeholder="e.g. Calibrated with certified weights. Drift observed above 400 N." style="width:100%;height:60px;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;font-size:0.875rem"></textarea>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Capture ─────────────────────────────────────────────────── -->
-    <div class="card">
-      <div class="card-title">Capture Point</div>
-      <div class="row">
-        <label>Current raw reading:</label>
-        <span id="cal-live-raw" style="font-size:1.4rem;font-weight:700;color:var(--primary);min-width:120px">--</span>
-        <button class="btn-secondary" onclick="sendCmd('TARE')" style="margin-left:8px">Tare (Zero)</button>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <label>Known mass:</label>
-        <input type="number" id="cal-mass-input" value="" min="0" step="0.001" style="width:110px" placeholder="0.000"/>
-        <select id="cal-mass-unit" style="width:60px">
-          <option value="kg">kg</option>
-          <option value="g">g</option>
-          <option value="N">N</option>
-        </select>
-        <button class="btn-primary" onclick="captureCalPoint()">Capture Reading</button>
-      </div>
-    </div>
-
-    <!-- ── Points table ────────────────────────────────────────────── -->
-    <div class="card">
-      <div class="card-title">Calibration Points</div>
-      <table class="stats-table" id="cal-points-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Mass (kg)</th>
-            <th>Force (N)</th>
-            <th>Raw Reading</th>
-            <th>Predicted (N)</th>
-            <th>Residual (N)</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="cal-points-body">
-          <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px">No points captured yet.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- ── Results ─────────────────────────────────────────────────── -->
-    <div class="card" id="cal-results-card" style="display:none">
-      <div class="card-title">Calibration Results</div>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
-        <div class="failure-stat-box">
-          <div class="failure-stat-label">Factor (raw / N)</div>
-          <div class="failure-stat-val" id="cal-result-factor">—</div>
-        </div>
-        <div class="failure-stat-box">
-          <div class="failure-stat-label">Offset (raw at 0 N)</div>
-          <div class="failure-stat-val" id="cal-result-offset">—</div>
-        </div>
-        <div class="failure-stat-box">
-          <div class="failure-stat-label">R²</div>
-          <div class="failure-stat-val" id="cal-result-r2">—</div>
-        </div>
-      </div>
-      <p id="cal-result-equation" style="font-size:0.875rem;font-family:monospace;color:var(--text);margin-bottom:14px"></p>
-      <div class="row">
-        <button class="btn-primary"   onclick="applyCalibration()">Apply to GUI (Activate)</button>
-        <button class="btn-success"   onclick="saveCalibrationFile()">💾 Save to Calibrations</button>
-        <button class="btn-secondary" onclick="clearCalPoints()">Clear All Points</button>
-        <button class="btn-secondary" onclick="exportCalCSV()">⬇ Download CSV</button>
-      </div>
-    </div>
-
-    <!-- ── Chart ───────────────────────────────────────────────────── -->
-    <div class="card" id="cal-chart-card">
-      <div class="card-title">Calibration Curve</div>
-      <div style="position:relative;height:320px"><canvas id="cal-chart"></canvas></div>
-    </div>
-
-  </div>
-</div>
+<div id="tab-cal" class="tab-pane" style="display:none"></div>
 
 
 <!-- ══════════════════════════════════════════════════════════════ -->
@@ -1174,19 +1039,8 @@ function processLine(line) {
   if (line.startsWith('FORCE ')) {
     const p = line.split(' ');
     if (p.length === 3) {
-      const rawCount = parseFloat(p[1]);   // raw value from ESP (counts before GUI cal)
-      if (isNaN(rawCount)) return;
-
-      // Always show the raw pre-calibration value in the cal tab
-      const calRawEl = document.getElementById('cal-live-raw');
-      if (calRawEl) calRawEl.textContent = rawCount.toFixed(2);
-
-      // Apply GUI-side calibration if active: F(N) = (raw - intercept) / slope
-      let rawN = rawCount;
-      if (_guiCal && _guiCal.slope !== 0) {
-        rawN = (rawCount - _guiCal.intercept) / _guiCal.slope;
-      }
-
+      const rawN = parseFloat(p[1]);
+      if (isNaN(rawN)) return;
       s.forceValue = rawN;
 
       const now = performance.now() / 1000;
@@ -1254,6 +1108,13 @@ function toggleForceFlip() {
   s.forceFlip *= -1;
   const ind = document.getElementById('flip-indicator');
   if (ind) ind.textContent = s.forceFlip === -1 ? '(inverted)' : '';
+}
+
+// ── Force calibration ──────────────────────────────────────────────────────
+async function setCalFactor() {
+  const f = parseFloat(document.getElementById('cal-factor').value);
+  if (!f || f === 0) { alert('Enter a non-zero calibration factor.'); return; }
+  await sendCmd(`CALFACTOR ${f}`);
 }
 
 // ── Shear test ─────────────────────────────────────────────────────────────
@@ -2912,7 +2773,6 @@ function updateAxisFont() {
 // ── Load Cell Calibration ──────────────────────────────────────────────────
 let _calPoints  = [];   // [{massKg, forceN, raw}]
 let calChart    = null;
-let _guiCal     = null; // { slope, intercept, name, r2 } — active GUI-side calibration
 
 function initCalChart() {
   if (calChart) return;
@@ -3016,9 +2876,6 @@ function renderCalTable() {
     document.getElementById('cal-result-r2').textContent      = reg.r2.toFixed(5);
     document.getElementById('cal-result-equation').textContent =
       `raw = ${reg.slope.toFixed(4)} × F(N)  +  ${reg.intercept.toFixed(2)}   →   F(N) = (raw − ${reg.intercept.toFixed(2)}) / ${reg.slope.toFixed(4)}`;
-    // Enable Activate button
-    const btnAct = document.getElementById('btn-activate-cal');
-    if (btnAct) btnAct.disabled = false;
   }
 
 }
@@ -3058,14 +2915,14 @@ function updateCalChart() {
   calChart.update();
 }
 
-function applyCalibration() {
+async function applyCalibration() {
   const reg = calLinReg();
   if (!reg) { alert('Need at least 2 calibration points.'); return; }
-  if (reg.slope === 0) { alert('Slope is zero — check your data.'); return; }
-  const name = document.getElementById('cal-name').value.trim() || 'unnamed';
-  _guiCal = { slope: reg.slope, intercept: reg.intercept, name, r2: reg.r2 };
-  updateCalStatus();
-  alert(`GUI calibration active: "${name}"\nraw = ${reg.slope.toFixed(4)} × F(N) + ${reg.intercept.toFixed(2)}\nR² = ${reg.r2.toFixed(5)}`);
+  const factor = reg.slope;
+  if (factor === 0) { alert('Slope is zero — check your data.'); return; }
+  document.getElementById('cal-factor').value = factor.toFixed(6);
+  await sendCmd(`CALFACTOR ${factor.toFixed(6)}`);
+  alert(`Calibration applied.\nFactor = ${factor.toFixed(6)} raw/N\nOffset = ${reg.intercept.toFixed(2)}\nR² = ${reg.r2.toFixed(5)}`);
 }
 
 function _buildCalCSV() {
@@ -3196,47 +3053,9 @@ async function loadSelectedCalFile() {
     const lbl = document.getElementById('cal-loaded-label');
     lbl.textContent = `✓ Loaded: ${name.replace(/\.csv$/i,'')}`;
     lbl.style.display = 'block';
-    // Enable Activate button
-    const btnAct = document.getElementById('btn-activate-cal');
-    if (btnAct) btnAct.disabled = false;
   } catch (e) {
     alert('Load failed: ' + e.message);
   }
-}
-
-function activateLoadedCal() {
-  const reg = calLinReg();
-  if (!reg || !_calPoints.length) { alert('Load a calibration file first.'); return; }
-  const calName = document.getElementById('cal-name').value.trim()
-    || document.getElementById('cal-file-sel').value.replace(/\.csv$/i, '')
-    || 'loaded cal';
-  _guiCal = { slope: reg.slope, intercept: reg.intercept, name: calName, r2: reg.r2 };
-  updateCalStatus();
-  alert(`Calibration "${calName}" activated for GUI.\nraw = ${reg.slope.toFixed(4)} × F(N) + ${reg.intercept.toFixed(2)}\nR² = ${reg.r2.toFixed(5)}`);
-}
-
-function clearGuiCal() {
-  _guiCal = null;
-  updateCalStatus();
-}
-
-function updateCalStatus() {
-  const text = _guiCal
-    ? `✓ Active: ${_guiCal.name}  (R²\u202f=\u202f${_guiCal.r2.toFixed(4)})`
-    : 'No calibration active — raw counts passed through as-is';
-  const colour = _guiCal ? 'var(--success)' : 'var(--muted)';
-
-  // Status line in cal tab
-  const calSt = document.getElementById('cal-active-status');
-  if (calSt) { calSt.textContent = text; calSt.style.color = colour; }
-
-  // Status in HX711 card (direct shear tab)
-  const hx711St = document.getElementById('hx711-cal-status');
-  if (hx711St) { hx711St.textContent = text; hx711St.style.color = colour; }
-
-  // Clear button visibility
-  const btnClear = document.getElementById('btn-clear-gui-cal');
-  if (btnClear) btnClear.style.display = _guiCal ? 'inline-flex' : 'none';
 }
 
 // ── Initialise on load ─────────────────────────────────────────────────────
@@ -3244,7 +3063,6 @@ updateBoxArea();
 updateSmoothUI();
 initForceChart();
 initFailureChart();
-initCalChart();
 </script>
 </body>
 </html>
