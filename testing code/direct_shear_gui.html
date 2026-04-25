@@ -209,16 +209,34 @@
     .modal-field textarea { resize: vertical; min-height: 56px; }
     .modal-actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
 
-    /* ── Metadata tags in file list ─────────────────────────────── */
-    .meta-tags { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0 4px 28px; }
-    .meta-tag {
-      background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
-      border-radius: 999px; padding: 1px 7px; font-size: 0.67rem; font-weight: 600; white-space: nowrap;
+    /* ── Metadata hover popover ─────────────────────────────────── */
+    .meta-info-btn {
+      background: none; border: 1px solid var(--border); border-radius: 50%;
+      width: 16px; height: 16px; font-size: 0.6rem; font-weight: 700; color: var(--muted);
+      cursor: pointer; flex-shrink: 0; padding: 0; line-height: 16px; text-align: center;
+      position: relative;
     }
-    .meta-tag.orange { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
-    .meta-tag.green  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
-    .meta-tag.purple { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
-    .meta-tag.gray   { background: #f9fafb; color: #374151; border-color: #e5e7eb; }
+    .meta-info-btn:hover { border-color: var(--primary); color: var(--primary); background: #eff6ff; }
+    .meta-popover {
+      display: none; position: absolute; z-index: 999;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.13); padding: 10px 13px; min-width: 200px;
+      font-size: 0.78rem; white-space: nowrap; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%);
+    }
+    .meta-popover::after {
+      content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+      border: 6px solid transparent; border-top-color: var(--border);
+    }
+    .meta-popover::before {
+      content: ''; position: absolute; top: calc(100% - 1px); left: 50%; transform: translateX(-50%);
+      border: 6px solid transparent; border-top-color: var(--surface); z-index: 1;
+    }
+    .meta-info-btn:hover .meta-popover,
+    .meta-info-btn:focus .meta-popover { display: block; }
+    .meta-popover-row { display: flex; gap: 8px; margin-bottom: 4px; }
+    .meta-popover-row:last-child { margin-bottom: 0; }
+    .meta-popover-key { color: var(--muted); min-width: 100px; }
+    .meta-popover-val { font-weight: 600; color: var(--text); }
 
     /* (filter bar removed) */
     .filter-row input[type=text], .filter-row input[type=number] {
@@ -652,12 +670,12 @@
           <div class="sidebar-section-title">Sample Geometry</div>
           <div class="sidebar-row">
             <label style="width:96px">Box width:</label>
-            <input type="number" id="box-width" value="60" min="1" step="1" style="width:58px" onchange="updateBoxArea();scheduleFullReplot()"/>
+            <input type="number" id="box-width" value="88" min="1" step="1" style="width:58px" onchange="updateBoxArea();scheduleFullReplot()"/>
             <span class="muted" style="font-size:0.78rem">mm</span>
           </div>
           <div class="sidebar-row">
             <label style="width:96px">Box length:</label>
-            <input type="number" id="box-length" value="60" min="1" step="1" style="width:58px" onchange="updateBoxArea();scheduleFullReplot()"/>
+            <input type="number" id="box-length" value="88" min="1" step="1" style="width:58px" onchange="updateBoxArea();scheduleFullReplot()"/>
             <span class="muted" style="font-size:0.78rem">mm</span>
           </div>
           <div class="sidebar-row">
@@ -680,16 +698,34 @@
               <option value="none">None</option>
               <option value="ma">Moving Average</option>
               <option value="sg" selected>Savitzky-Golay</option>
+              <option value="gauss">Gaussian Kernel</option>
+              <option value="fbema">Fwd-Back EMA</option>
             </select>
           </div>
           <div class="sidebar-row" id="smooth-window-row">
             <label style="width:70px">Window:</label>
-            <input type="number" id="smooth-window" value="11" min="3" max="201" step="2" style="width:58px" onchange="scheduleFullReplot()"/>
+            <input type="number" id="smooth-window" value="51" min="3" max="801" step="2" style="width:58px" onchange="scheduleFullReplot()"/>
             <span class="muted" style="font-size:0.78rem">pts (odd)</span>
           </div>
           <div class="sidebar-row" id="smooth-poly-row">
             <label style="width:70px">Poly order:</label>
             <input type="number" id="smooth-poly" value="3" min="2" max="5" style="width:58px" onchange="scheduleFullReplot()"/>
+          </div>
+          <div class="sidebar-row" id="smooth-gauss-row" style="display:none">
+            <label style="width:70px">Bandwidth:</label>
+            <input type="number" id="smooth-gauss-bw" value="0.2" min="0.01" max="5" step="0.05" style="width:58px" onchange="scheduleFullReplot()"/>
+            <span class="muted" style="font-size:0.78rem">mm</span>
+          </div>
+          <div class="sidebar-row" id="smooth-fbema-row" style="display:none">
+            <label style="width:70px">Alpha:</label>
+            <input type="number" id="smooth-fbema-alpha" value="0.08" min="0.01" max="0.5" step="0.01" style="width:74px" onchange="scheduleFullReplot()"/>
+            <span class="muted" style="font-size:0.78rem">lower = smoother</span>
+          </div>
+          <div class="sidebar-row" id="smooth-raw-row" style="display:none">
+            <input type="checkbox" id="show-raw-chk" onchange="scheduleFullReplot()"/>
+            <label for="show-raw-chk">Overlay raw trace</label>
+            <input type="number" id="raw-opacity" value="50" min="1" max="100" step="1" style="width:52px;margin-left:8px" title="Raw trace opacity %" onchange="scheduleFullReplot()"/>
+            <span class="muted" style="font-size:0.78rem">%</span>
           </div>
         </div>
 
@@ -858,6 +894,7 @@
               <span class="muted" style="font-size:0.76rem">Scroll=zoom · Drag=pan</span>
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="forceChart&&forceChart.resetZoom()">⤢</button>
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="toggleChartFullscreen(this.closest('.card'))">⛶</button>
+              <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="popoutChart(forceChart,'Force vs Displacement','force')">⧉</button>
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="exportForcePNG()">⬇ PNG</button>
             </div>
           </div>
@@ -871,6 +908,7 @@
             <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="overlayChart.resetZoom()">⤢</button>
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="toggleChartFullscreen(this.closest('.card'))">⛶</button>
+              <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="popoutChart(overlayChart,'Shear Stress vs Shear Strain','overlay')">⧉</button>
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="exportChartPNG()">⬇ PNG</button>
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="exportCombinedCSV()">⬇ CSV</button>
             </div>
@@ -903,6 +941,7 @@
             <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="failureChart&&failureChart.resetZoom()">⤢</button>
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="toggleChartFullscreen(this.closest('.card'))">⛶</button>
+              <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="popoutChart(failureChart,'Failure Envelope','failure')">⧉</button>
               <button class="btn-secondary" style="padding:4px 9px;font-size:0.78rem" onclick="exportFailurePNG()">⬇ PNG</button>
             </div>
           </div>
@@ -1729,17 +1768,21 @@ function parseCSVMeta(text) {
   return meta;
 }
 
-// Build coloured tag HTML from a metadata object
+// Build a hover popover button from a metadata object (returns empty string if no metadata)
 function buildMetaTags(meta) {
-  const t = [];
-  if (meta['Sand Type'])          t.push(`<span class="meta-tag">${escHtml(meta['Sand Type'])}</span>`);
-  if (meta['Normal Force'])       t.push(`<span class="meta-tag orange">${escHtml(meta['Normal Force'])} N</span>`);
-  if (meta['Moisture Content'])   t.push(`<span class="meta-tag green">${escHtml(meta['Moisture Content'])}</span>`);
-  if (meta['Temperature'])        t.push(`<span class="meta-tag purple">${escHtml(meta['Temperature'])}</span>`);
-  if (meta['Density/Condition'])  t.push(`<span class="meta-tag gray">${escHtml(meta['Density/Condition'])}</span>`);
-  if (meta['Operator'])           t.push(`<span class="meta-tag gray">\u{1F464} ${escHtml(meta['Operator'])}</span>`);
-  if (meta['Test Series'])        t.push(`<span class="meta-tag" style="background:#f0fdf4;color:#166534;border-color:#86efac">${escHtml(meta['Test Series'])}${meta['Replicate'] ? ` rep\u202f${escHtml(meta['Replicate'])}` : ''}</span>`);
-  return t.join('');
+  const rows = [];
+  if (meta['Sand Type'])         rows.push(['Sand Type',         escHtml(meta['Sand Type'])]);
+  if (meta['Normal Force'])      rows.push(['Normal Force',      escHtml(meta['Normal Force'])]);
+  if (meta['Moisture Content'])  rows.push(['Moisture',          escHtml(meta['Moisture Content'])]);
+  if (meta['Temperature'])       rows.push(['Temperature',       escHtml(meta['Temperature'])]);
+  if (meta['Density/Condition']) rows.push(['Density/Condition', escHtml(meta['Density/Condition'])]);
+  if (meta['Operator'])          rows.push(['Operator',          escHtml(meta['Operator'])]);
+  if (meta['Test Series'])       rows.push(['Test Series',       escHtml(meta['Test Series']) + (meta['Replicate'] ? ` rep\u202f${escHtml(meta['Replicate'])}` : '')]);
+  if (!rows.length) return '';
+  const inner = rows.map(([k, v]) =>
+    `<div class="meta-popover-row"><span class="meta-popover-key">${k}</span><span class="meta-popover-val">${v}</span></div>`
+  ).join('');
+  return `<button class="meta-info-btn" tabindex="0" style="font-size:0.65rem">i<div class="meta-popover">${inner}</div></button>`;
 }
 
 function escHtml(s) {
@@ -1779,12 +1822,21 @@ function updateBoxArea() {
 // ── Smoothing ──────────────────────────────────────────────────────────────
 function updateSmoothUI() {
   const method = document.getElementById('smooth-method')?.value || 'none';
-  const showW  = method !== 'none';
+  const showW  = method === 'ma' || method === 'sg';
   const showP  = method === 'sg';
+  const showG  = method === 'gauss';
+  const showE  = method === 'fbema';
+  const showR  = method !== 'none';
   const wr = document.getElementById('smooth-window-row');
   const pr = document.getElementById('smooth-poly-row');
+  const gr = document.getElementById('smooth-gauss-row');
+  const er = document.getElementById('smooth-fbema-row');
+  const rr = document.getElementById('smooth-raw-row');
   if (wr) wr.style.display = showW ? '' : 'none';
   if (pr) pr.style.display = showP ? '' : 'none';
+  if (gr) gr.style.display = showG ? '' : 'none';
+  if (er) er.style.display = showE ? '' : 'none';
+  if (rr) rr.style.display = showR ? '' : 'none';
 }
 
 function movingAverage(arr, w) {
@@ -1842,10 +1894,45 @@ function savitzkyGolay(arr, w, deg) {
   });
 }
 
-function applySmoothingToY(yArr) {
+function gaussianSmooth(arr, xArr, bw_mm) {
+  const dx = xArr.length > 1 ? Math.abs(xArr[xArr.length - 1] - xArr[0]) / (xArr.length - 1) : 1;
+  const sigma = Math.max(bw_mm / dx, 1);
+  const halfW = Math.ceil(3.5 * sigma);
+  return arr.map((_, i) => {
+    let vsum = 0, wsum = 0;
+    for (let j = Math.max(0, i - halfW); j <= Math.min(arr.length - 1, i + halfW); j++) {
+      const d = (j - i) / sigma;
+      const w = Math.exp(-0.5 * d * d);
+      vsum += w * arr[j]; wsum += w;
+    }
+    return wsum > 0 ? vsum / wsum : arr[i];
+  });
+}
+
+function forwardBackwardEMA(arr, alpha) {
+  const n = arr.length;
+  if (n === 0) return arr;
+  const fwd = new Array(n);
+  fwd[0] = arr[0];
+  for (let i = 1; i < n; i++) fwd[i] = alpha * arr[i] + (1 - alpha) * fwd[i - 1];
+  const out = new Array(n);
+  out[n - 1] = fwd[n - 1];
+  for (let i = n - 2; i >= 0; i--) out[i] = alpha * fwd[i] + (1 - alpha) * out[i + 1];
+  return out;
+}
+
+function applySmoothingToY(yArr, xArr) {
   const method = document.getElementById('smooth-method')?.value || 'none';
   if (method === 'none') return yArr;
-  let w = parseInt(document.getElementById('smooth-window')?.value) || 11;
+  if (method === 'gauss') {
+    const bw = parseFloat(document.getElementById('smooth-gauss-bw')?.value) || 0.2;
+    return gaussianSmooth(yArr, xArr || yArr.map((_, i) => i), bw);
+  }
+  if (method === 'fbema') {
+    const alpha = parseFloat(document.getElementById('smooth-fbema-alpha')?.value) || 0.08;
+    return forwardBackwardEMA(yArr, alpha);
+  }
+  let w = parseInt(document.getElementById('smooth-window')?.value) || 51;
   if (w % 2 === 0) w++;
   w = Math.max(3, w);
   if (method === 'ma') return movingAverage(yArr, w);
@@ -1929,7 +2016,7 @@ function plotFailureEnvelope(points) {
     const denom  = n * sxx - sx * sx;
     const slope  = denom !== 0 ? (n * sxy - sx * sy) / denom : 0;
     const intercept = (sy - slope * sx) / n;
-    const phi_deg   = Math.atan(Math.max(0, slope)) * 180 / Math.PI;
+    const phi_deg   = Math.atan(slope) * 180 / Math.PI;
 
     const yMean  = sy / n;
     const ssTot  = points.reduce((a, p) => a + (p.tau_f - yMean) ** 2, 0);
@@ -1939,7 +2026,7 @@ function plotFailureEnvelope(points) {
     const xMin = 0;
     const xMax = Math.max(...points.map(p => p.sigma_n)) * 1.15;
     failureChart.data.datasets.push({
-      label:       `τ = ${intercept.toFixed(2)} + σ·tan(${phi_deg.toFixed(1)}°)`,
+      label:       `τ = ${intercept.toFixed(2)} + σ·tan(${phi_deg.toFixed(2)}°)`,
       data:        [{ x: xMin, y: intercept + slope * xMin }, { x: xMax, y: intercept + slope * xMax }],
       type:        'line',
       borderColor: '#1a56db',
@@ -1950,10 +2037,10 @@ function plotFailureEnvelope(points) {
 
     if (statsDiv) {
       document.getElementById('fail-cohesion').textContent = intercept.toFixed(2);
-      document.getElementById('fail-friction').textContent = phi_deg.toFixed(1);
+      document.getElementById('fail-friction').textContent = phi_deg.toFixed(2);
       document.getElementById('fail-r2').textContent       = r2.toFixed(4);
       document.getElementById('fail-equation').textContent =
-        `τ_f = ${intercept.toFixed(2)} + σ_n · tan(${phi_deg.toFixed(1)}°)   [R² = ${r2.toFixed(4)}]`;
+        `τ_f = ${intercept.toFixed(2)} + σ_n · tan(${phi_deg.toFixed(2)}°)   [R² = ${r2.toFixed(4)}]`;
       statsDiv.style.display = 'block';
     }
   } else {
@@ -2025,6 +2112,109 @@ document.addEventListener('fullscreenchange', () => {
   });
 });
 
+// ── Pop-out chart into new window ──────────────────────────────────────────
+function _serializeDatasets(chart) {
+  return chart.data.datasets.map(ds => ({
+    label:           ds.label || '',
+    data:            ds.data,
+    borderColor:     ds.borderColor,
+    backgroundColor: ds.backgroundColor,
+    borderWidth:     ds.borderWidth  ?? 1.5,
+    pointRadius:     ds.pointRadius  ?? 0,
+    pointStyle:      ds.pointStyle   || 'circle',
+    showLine:        ds.showLine     !== false,
+    tension:         ds.tension      || 0,
+    borderDash:      ds.borderDash   || [],
+    fill:            ds.fill         || false,
+  }));
+}
+
+function syncPopouts() {
+  for (const [key, win] of _popouts) {
+    if (!win || win.closed) { _popouts.delete(key); continue; }
+    const chart = key === 'force' ? forceChart : key === 'overlay' ? overlayChart : failureChart;
+    if (!chart) continue;
+    try { win.updateChart?.(_serializeDatasets(chart)); } catch(e) { _popouts.delete(key); }
+  }
+}
+
+function popoutChart(chart, title, key) {
+  if (!chart || !chart.data.datasets.length) { alert('No data to pop out.'); return; }
+  // If already open for this chart, focus and sync instead of opening another
+  const existing = _popouts.get(key);
+  if (existing && !existing.closed) {
+    existing.focus();
+    try { existing.updateChart?.(_serializeDatasets(chart)); } catch(e) {}
+    return;
+  }
+  const xLabel = chart.options.scales?.x?.title?.text || 'X';
+  const yLabel = chart.options.scales?.y?.title?.text || 'Y';
+  const datasets = chart.data.datasets.map(ds => ({
+    label:           ds.label || '',
+    data:            ds.data,
+    borderColor:     ds.borderColor,
+    backgroundColor: ds.backgroundColor,
+    borderWidth:     ds.borderWidth  ?? 1.5,
+    pointRadius:     ds.pointRadius  ?? 0,
+    pointStyle:      ds.pointStyle   || 'circle',
+    showLine:        ds.showLine     !== false,
+    tension:         ds.tension      || 0,
+    borderDash:      ds.borderDash   || [],
+    fill:            ds.fill         || false,
+  }));
+  const payload = JSON.stringify({ datasets, xLabel, yLabel, title });
+  const win = window.open('', '', 'width=1050,height=680,resizable=yes,scrollbars=no');
+  if (!win) { alert('Pop-up blocked — allow pop-ups for this page and try again.'); return; }
+  _popouts.set(key, win);
+  const safeTitle = escHtml(title);
+  win.document.write(
+`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>${safeTitle}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"><\/script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;display:flex;flex-direction:column;height:100vh}
+.hdr{background:#fff;border-bottom:1px solid #d0d5dd;padding:9px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.hdr h1{font-size:0.92rem;font-weight:700;color:#1a56db;flex:1}
+.hdr button{border:none;border-radius:6px;padding:5px 12px;font-size:0.8rem;font-weight:600;cursor:pointer;background:#e5e7eb;color:#111}
+.hdr button:hover{background:#d1d5db}
+.wrap{flex:1;padding:14px;position:relative;min-height:0}
+.hint{position:absolute;bottom:6px;right:14px;font-size:0.7rem;color:#9ca3af}
+</style>
+</head><body>
+<div class="hdr"><h1>${safeTitle}</h1>
+<button onclick="ch.resetZoom()">&#x2922; Reset zoom</button>
+</div>
+<div class="wrap"><canvas id="c"></canvas><span class="hint">Scroll = zoom &nbsp;&middot;&nbsp; Drag = pan</span></div>
+<script>
+const {datasets,xLabel,yLabel}=${payload};
+const ctx=document.getElementById('c').getContext('2d');
+const ch=new Chart(ctx,{
+  type:'line',
+  data:{datasets},
+  options:{
+    animation:false,responsive:true,maintainAspectRatio:false,
+    parsing:{xAxisKey:'x',yAxisKey:'y'},
+    scales:{
+      x:{type:'linear',title:{display:true,text:xLabel,font:{size:13,weight:'600',family:"'Segoe UI',system-ui,sans-serif"},color:'#222',padding:{top:8}},
+         grid:{color:'#e0e0e0',lineWidth:0.8},border:{color:'#555',width:1.5},ticks:{font:{size:11},color:'#444',maxTicksLimit:10}},
+      y:{type:'linear',title:{display:true,text:yLabel,font:{size:13,weight:'600',family:"'Segoe UI',system-ui,sans-serif"},color:'#222',padding:{bottom:8}},
+         grid:{color:'#e0e0e0',lineWidth:0.8},border:{color:'#555',width:1.5},ticks:{font:{size:11},color:'#444',maxTicksLimit:10}},
+    },
+    plugins:{
+      legend:{position:'top',labels:{boxWidth:14,font:{size:11},usePointStyle:true,padding:14,color:'#333'}},
+      tooltip:{mode:'index',intersect:false},
+      zoom:{zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'xy'},pan:{enabled:true,mode:'xy'}},
+    },
+  },
+});
+window.updateChart=function(ds){ch.data.datasets=ds;ch.update('none');};
+<\/script></body></html>`);
+  win.document.close();
+}
+
 function exportForcePNG() {
   if (!forceChart || !forceChart.data.datasets.length) { alert('Nothing to export.'); return; }
   const a = document.createElement('a');
@@ -2035,6 +2225,9 @@ function exportForcePNG() {
 
 // ── Data cache (keyed by filename, cleared on align-setting change) ────────
 const _dataCache = new Map();
+
+// ── Popout window registry ─────────────────────────────────────────────────
+const _popouts = new Map(); // key ('force'|'overlay'|'failure') → window ref
 
 // ── Debounced auto-replot ──────────────────────────────────────────────────
 let _plotTimer = null;
@@ -2148,23 +2341,25 @@ function renderFileTree() {
         if (idx < 0) continue;
         const color  = OVERLAY_COLORS[idx % OVERLAY_COLORS.length];
         const meta   = n.meta || {};
+        const sandType   = meta['Sand Type']    || '';
+        const normalForce = meta['Normal Force'] || '';
         const series = meta['Test Series'] || '';
         const rep    = meta['Replicate']   || '';
-        const defName = series
-          ? (rep ? `${series} — rep ${rep}` : series)
-          : n.parsed
-            ? [n.parsed.dayLabel, n.parsed.timeStr, n.parsed.suffix].filter(Boolean).join('  ·  ')
-            : n.name.replace(/\.csv$/i, '');
-        const tags = buildMetaTags(meta);
-        html += `<div class="file-row" style="padding-left:${indent + 4}px;flex-direction:column;gap:0;padding-top:3px;padding-bottom:2px">
-          <div style="display:flex;align-items:center;gap:5px;width:100%">
+        const defName = sandType || normalForce
+          ? [sandType, normalForce].filter(Boolean).join(' · ')
+          : series
+            ? (rep ? `${series} rep ${rep}` : series)
+            : n.parsed
+              ? [n.parsed.dayLabel, n.parsed.timeStr, n.parsed.suffix].filter(Boolean).join('  ·  ')
+              : n.name.replace(/\.csv$/i, '');
+        const infoBtn = buildMetaTags(meta);
+        html += `<div class="file-row" style="padding-left:${indent + 4}px;padding-top:3px;padding-bottom:2px">
             <input type="checkbox" data-idx="${idx}" ${_selectedIndices.has(idx) ? 'checked' : ''}/>
             <input type="color" class="series-color" data-idx="${idx}" value="${color}" title="Series colour"/>
             <input type="text" class="series-name-input" data-idx="${idx}" value="${escHtml(defName)}" placeholder="series name" style="flex:1;min-width:0"/>
+            ${infoBtn}
             <button class="btn-secondary" style="font-size:0.72rem;padding:2px 7px;flex-shrink:0" data-org-move="${escHtml(n.path)}" title="Move file">Move</button>
             <button class="btn-danger"    style="font-size:0.72rem;padding:2px 6px;flex-shrink:0" data-org-delete-file="${escHtml(n.path)}" title="Delete file">🗑</button>
-          </div>
-          ${tags ? `<div class="meta-tags" style="margin-left:24px">${tags}</div>` : ''}
         </div>`;
       }
     }
@@ -2275,19 +2470,25 @@ function renderOrgContent() {
     html += `<div style="font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px">Files (${files.length})</div>`;
     for (const f of files) {
       const meta   = f.meta || {};
-      const tags   = buildMetaTags(meta);
+      const infoBtn2 = buildMetaTags(meta);
+      const fSand  = meta['Sand Type']    || '';
+      const fForce = meta['Normal Force'] || '';
       const series = meta['Test Series'];
       const rep    = meta['Replicate'];
-      const label2 = series
-        ? (rep ? `${series} — rep ${rep}` : series)
-        : f.parsed
-          ? [f.parsed.dayLabel, f.parsed.timeStr, f.parsed.suffix].filter(Boolean).join('  ·  ')
-          : f.name.replace(/^shear_test_/, '').replace(/\.csv$/i, '');
+      const label2 = fSand || fForce
+        ? [fSand, fForce].filter(Boolean).join(' · ')
+        : series
+          ? (rep ? `${series} rep ${rep}` : series)
+          : f.parsed
+            ? [f.parsed.dayLabel, f.parsed.timeStr, f.parsed.suffix].filter(Boolean).join('  ·  ')
+            : f.name.replace(/^shear_test_/, '').replace(/\.csv$/i, '');
       html += `<div class="org-file-row">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:0.88rem;font-weight:600">${escHtml(label2)}</div>
-          <div style="font-size:0.71rem;color:var(--muted);margin-top:1px">${escHtml(f.name)}</div>
-          ${tags ? `<div class="meta-tags" style="margin:4px 0 0">${tags}</div>` : ''}
+        <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px">
+          <div>
+            <div style="font-size:0.88rem;font-weight:600">${escHtml(label2)}</div>
+            <div style="font-size:0.71rem;color:var(--muted);margin-top:1px">${escHtml(f.name)}</div>
+          </div>
+          ${infoBtn2}
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;align-items:flex-start;padding-top:2px">
           <button class="btn-secondary" style="font-size:0.78rem;padding:4px 10px" data-org-move="${escHtml(f.path)}">Move →</button>
@@ -2465,9 +2666,18 @@ async function plotSelected() {
     }
 
     // Smoothed force, stress (kPa), and shear strain (dimensionless)
-    const smoothedY  = applySmoothingToY(data.map(d => d[1]));
+    const smoothedY  = applySmoothingToY(data.map(d => d[1]), data.map(d => d[0]));
     const forceData  = data.map(([x], i) => [x, smoothedY[i]]);
     const strainData = data.map(([x], i) => [x / sampleH, smoothedY[i] * 1000 / areaMm2]);
+
+    const showRaw = document.getElementById('show-raw-chk')?.checked
+                 && (document.getElementById('smooth-method')?.value || 'none') !== 'none';
+    const rawOpacity = Math.min(100, Math.max(1, parseInt(document.getElementById('raw-opacity')?.value) || 50)) / 100;
+    const rawDs = showRaw ? {
+      showLine: true, fill: false, pointRadius: 0, tension: 0.1,
+      borderColor: hex2rgba(color, rawOpacity), backgroundColor: 'transparent',
+      borderWidth: Math.max(0.5, lineWidth * 0.55), borderDash: [5, 3],
+    } : null;
 
     // Peak shear stress & displacement at peak
     let peakTau = -Infinity, peakDisp = 0, peakStrain = 0;
@@ -2498,6 +2708,10 @@ async function plotSelected() {
 
     // Chart 1: Force (N) vs Displacement (mm)
     if (forceChart) {
+      if (rawDs) forceChart.data.datasets.push({
+        ...rawDs, label: `${name} (raw)`,
+        data: data.map(([x, y]) => ({ x, y })),
+      });
       forceChart.data.datasets.push({
         ...ds, label: name,
         data: forceData.map(([x, y]) => ({ x, y })),
@@ -2510,6 +2724,10 @@ async function plotSelected() {
     }
 
     // Chart 2: Shear Stress (kPa) vs Shear Strain γ
+    if (rawDs) overlayChart.data.datasets.push({
+      ...rawDs, label: `${name} (raw)`,
+      data: data.map(([x, y]) => ({ x: x / sampleH, y: y * 1000 / areaMm2 })),
+    });
     overlayChart.data.datasets.push({
       ...ds, label: name,
       data: strainData.map(([x, y]) => ({ x, y })),
@@ -2527,6 +2745,7 @@ async function plotSelected() {
   applyAxisLimits();
   showStats(statsRows);
   plotFailureEnvelope(failPoints);
+  syncPopouts();
 }
 
 function clearOverlay() {
@@ -2535,6 +2754,7 @@ function clearOverlay() {
   overlayChart.update();
   document.getElementById('stats-card').style.display   = 'none';
   if (failureChart) { failureChart.data.datasets = []; failureChart.update(); }
+  syncPopouts();
   document.getElementById('failure-card').style.display  = 'none';
   document.getElementById('failure-stats').style.display = 'none';
 }
