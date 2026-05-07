@@ -40,8 +40,14 @@ class App(tk.Tk):
 
         # Stepper (shared state, used by both stepper tab and shear test)
         self.rpm_var      = tk.StringVar(value="10")
-        self.spr_var      = tk.StringVar(value="200")
+        self.spr_var      = tk.StringVar(value="3200")   # 16× microstep + INTPOL→256
         self.dir_state    = 0
+
+        # Homing
+        self.home_offset_var = tk.StringVar(value="5")     # offset in mm
+        self.home_pitch_var  = tk.StringVar(value="8")     # lead screw pitch mm/rev
+        self.home_sgt_var    = tk.StringVar(value="5")
+        self.home_status_var = tk.StringVar(value="—")
 
         # Caliper
         self.caliper_var  = tk.StringVar(value="--")
@@ -193,8 +199,27 @@ class App(tk.Tk):
         ttk.Button(btns, text="RUN",        command=self._run_stepper).pack(side="left", padx=6)
         ttk.Button(btns, text="STOP",       command=self._stop_stepper).pack(side="left", padx=6)
 
+        # Homing section
+        home_lf = ttk.LabelFrame(frame, text="Sensorless Homing (StallGuard)")
+        home_lf.pack(fill="x", padx=16, pady=(8, 4))
+
+        h1 = ttk.Frame(home_lf)
+        h1.pack(anchor="w", padx=8, pady=6)
+        ttk.Label(h1, text="Offset (mm):").pack(side="left")
+        ttk.Entry(h1, textvariable=self.home_offset_var, width=7).pack(side="left", padx=4)
+        ttk.Label(h1, text="Pitch (mm/rev):").pack(side="left", padx=(12, 4))
+        ttk.Entry(h1, textvariable=self.home_pitch_var, width=7).pack(side="left")
+        ttk.Label(h1, text="SGT:").pack(side="left", padx=(12, 4))
+        ttk.Entry(h1, textvariable=self.home_sgt_var, width=5).pack(side="left")
+        ttk.Button(h1, text="⌂ Home", command=self._run_home).pack(side="left", padx=12)
+        ttk.Label(h1, textvariable=self.home_status_var,
+                  font=("Segoe UI", 10, "bold"),
+                  foreground="navy").pack(side="left", padx=4)
+
         ttk.Label(frame,
-                  text="Note: stepper uses STEP=GPIO16, DIR=GPIO17  (safe, non-strap pins)",
+                  text="Driver: TMC5160 Pro  |  STEP=GPIO16  DIR=GPIO17  EN=GPIO4  CS=GPIO22  DIAG0=GPIO34\n"
+                       "SPI: SCK=GPIO18  MISO=GPIO19  MOSI=GPIO23\n"
+                       "SPR 3200 = 16× microstep (driver interpolates to 256× internally)",
                   foreground="gray").pack(anchor="w", padx=16, pady=6)
 
     # ── Tab 3: Caliper Test ────────────────────────────────────────────
@@ -352,7 +377,14 @@ class App(tk.Tk):
                     if not line:
                         continue
 
-                    if line.startswith("CAL "):
+                    if line == "HOMING":
+                        self.home_status_var.set("Homing…")
+                    elif line == "HOMED":
+                        self.home_status_var.set("✓ Homed")
+                    elif line == "HOME_FAIL":
+                        self.home_status_var.set("✗ Failed — increase SGT")
+
+                    elif line.startswith("CAL "):
                         parts = line.split()
                         if len(parts) == 3:
                             try:
@@ -518,6 +550,21 @@ class App(tk.Tk):
 
     def _stop_stepper(self):
         self.send("STOP")
+
+    def _run_home(self):
+        try:
+            offset_mm = float(self.home_offset_var.get())
+            pitch_mm  = float(self.home_pitch_var.get())
+            sgt       = int(self.home_sgt_var.get())
+            spr       = float(self.spr_var.get())
+            if pitch_mm <= 0:
+                raise ValueError
+            offset_steps = round(offset_mm * spr / pitch_mm)
+        except (ValueError, TypeError):
+            messagebox.showerror("Invalid", "Check offset, pitch, and SGT values.")
+            return
+        self.home_status_var.set("Sending…")
+        self.send(f"HOME {offset_steps} {sgt}")
 
     # ------------------------------------------------------------------
     # Force gauge controls

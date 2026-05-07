@@ -1,5 +1,7 @@
 
 #include <Arduino.h>
+#include <SPI.h>
+#include <TMCStepper.h>
 
 // =====================================================================
 // Pin assignments  — all safe GPIOs, no strap / flash / PSRAM pins
@@ -11,6 +13,15 @@
 // Stepper
 static const int PIN_STEP = 16;
 static const int PIN_DIR  = 17;
+static const int PIN_EN   = 4;   // TMC5160 enable (active LOW)
+static const int PIN_CS   = 22;  // TMC5160 SPI chip select (GPIO22, no boot conflict)
+
+// TMC5160 SPI uses ESP32 VSPI bus defaults:
+//   SCK  = GPIO18,  MISO = GPIO19,  MOSI = GPIO23
+// These are wired directly to the driver SDI/SDO/SCK pins.
+
+// TMC5160 Pro sense resistor value (Mellow Fly Pro V1.5 = 0.075 Ω)
+static const float R_SENSE = 0.075f;
 
 // Caliper  (interrupt-driven)
 static const int CAL_CLK_PIN  = 27;
@@ -20,7 +31,7 @@ static const int CAL_DATA_PIN = 26;
 static const int HX711_DOUT = 32;
 static const int HX711_SCK  = 33;
 
-// Built-in LED (GPIO 2 on most DOIT DevKit boards — fine after reset)
+// Built-in LED (GPIO 2 on most DOIT DevKit boards)
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
@@ -33,9 +44,91 @@ static inline void flash_led(uint32_t ms = 20) {
 }
 
 // =====================================================================
+// TMC5160 driver object
+// =====================================================================
+TMC5160Stepper driver(PIN_CS, R_SENSE);
+
+void initTMC5160() {
+  pinMode(PIN_EN, OUTPUT);
+  digitalWrite(PIN_EN, HIGH);   // hold disabled while we configure
+
+  // ── Raw SPI diagnostic (bypass TMCStepper) ───────────────────────
+  // Check MISO line state before SPI starts
+  pinMode(19, INPUT_PULLUP);
+  delay(5);
+  Serial.print("MISO line (GPIO19) before SPI: ");
+  Serial.println(digitalRead(19) ? "HIGH (ok / floating)" : "LOW (pulled down — check VIO & wiring)");
+
+  // Manually clock out a TMC5160 IOIN read (address 0x04).
+  // TMC5160 pipelines reads: first transaction loads address,
+  // second transaction clocks out the data.
+  SPI.begin(18, 19, 23, 22);
+  delay(5);
+  uint8_t raw[5];
+  for (int pass = 0; pass < 2; pass++) {
+    SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE3));
+    digitalWrite(PIN_CS, LOW);
+    delayMicroseconds(500);
+    raw[0] = SPI.transfer(0x04);   // IOIN register address (read)
+    raw[1] = SPI.transfer(0x00);
+    raw[2] = SPI.transfer(0x00);
+    raw[3] = SPI.transfer(0x00);
+    raw[4] = SPI.transfer(0x00);
+    delayMicroseconds(500);
+    digitalWrite(PIN_CS, HIGH);
+    SPI.endTransaction();
+    delay(5);
+    Serial.printf("Raw SPI pass %d: %02X %02X %02X %02X %02X\n",
+                  pass + 1, raw[0], raw[1], raw[2], raw[3], raw[4]);
+  }
+  // pass 2 bytes 1-4 should be IOIN = 0x30000040 if driver is alive
+  // All 00 = MISO stuck LOW (VIO missing or MISO wire broken)
+  // All FF = MISO stuck HIGH (MISO not reaching driver)
+  // ────────────────────────────────────────────────────────────────
+
+  driver.setSPISpeed(500000);   // 500 kHz — robust over dupont wires
+  driver.begin();
+
+  // Chopper: SpreadCycle baseline, overridden to StealthChop below
+  driver.toff(5);
+  driver.blank_time(24);
+
+  // Current: rms_current() sets both IRUN and IHOLD (50 % hold by default)
+  driver.rms_current(1000);
+
+  // Microstepping: 16× physical, internally interpolated to 256× by the driver.
+  // INTPOL uses the driver's own precision clock so motion is smoother than
+  // sending 256× pulses from the ESP32 timer.
+  driver.microsteps(16);
+  driver.intpol(true);
+
+  // StealthChop2: near-silent at the slow speeds used in direct shear tests
+  driver.en_pwm_mode(true);
+  driver.pwm_autoscale(true);
+  driver.pwm_autograd(true);
+
+  // Leave driver disabled at startup — EN goes LOW only when RUN 1 is received.
+  // This means no current flows through the motor until a test is started.
+  digitalWrite(PIN_EN, HIGH);
+
+  // SPI sanity check — read IOIN register (contains driver version field).
+  // Good response: 0x30000040  (version byte = 0x30 for TMC5160)
+  // Bad response:  0x00000000 or 0xFFFFFFFF → SPI not reaching driver, recheck wiring.
+  uint32_t ioin = driver.IOIN();
+  Serial.print("TMC5160 IOIN: 0x");
+  Serial.println(ioin, HEX);
+  if ((ioin >> 24) == 0x30) {
+    Serial.println("TMC5160 SPI OK — driver detected");
+  } else {
+    Serial.println("TMC5160 SPI FAIL — check SCK/SDI/SDO/CS wiring");
+  }
+}
+
+// =====================================================================
 // Stepper motion
 // =====================================================================
-volatile float stepsPerRev = 200.0f;
+// With 16× microsteps + INTPOL, SPR seen by this firmware = 200 × 16 = 3200.
+volatile float stepsPerRev = 3200.0f;
 volatile float rpm         = 0.0f;
 volatile bool  running     = false;
 
@@ -178,19 +271,19 @@ float hx711_get_newtons() {
 // Serial protocol
 //
 // PC → ESP32 (commands):
-//   DIR 0/1        set direction
-//   RPM <float>    set speed
-//   SPR <float>    set steps/rev
-//   RUN 0/1        start/stop motor
-//   STOP           stop motor
-//   TARE           tare load cell
-//   CALFACTOR <f>  set calibration factor (raw counts/N)
+//   DIR 0/1           set direction
+//   RPM <float>       set speed
+//   SPR <float>       set steps/rev (use 3200 for 16× microstep + INTPOL)
+//   RUN 0/1           start/stop motor
+//   STOP              stop motor
+//   TARE              tare load cell
+//   CALFACTOR <f>     set calibration factor (raw counts/N)
 //
 // ESP32 → PC (output):
-//   CAL <value> mm|in    caliper reading
-//   FORCE <value> N      load-cell reading in Newtons
-//   OK <CMD>             command acknowledged
-//   ERR                  unrecognised command
+//   CAL <value> mm|in     caliper reading
+//   FORCE <value> N       load-cell reading in Newtons
+//   OK <CMD>              command acknowledged
+//   ERR                   unrecognised command
 // =====================================================================
 void handleLine(String line) {
   line.trim();
@@ -203,7 +296,7 @@ void handleLine(String line) {
     updateTimerFromParams();
     digitalWrite(PIN_STEP, LOW);
     stepLevel = false;
-    digitalWrite(PIN_DIR, v ? HIGH : LOW);
+    digitalWrite(PIN_DIR, v ? LOW : HIGH);
     delayMicroseconds(20);
     running = wasRunning;
     updateTimerFromParams();
@@ -238,7 +331,15 @@ void handleLine(String line) {
 
   if (line.startsWith("RUN")) {
     int v = line.substring(3).toInt();
-    running = (v != 0);
+    if (v != 0) {
+      digitalWrite(PIN_EN, LOW);   // enable driver before stepping
+      delay(1);                    // brief settle before first step pulse
+      running = true;
+    } else {
+      running = false;
+      updateTimerFromParams();
+      digitalWrite(PIN_EN, HIGH);  // disable driver — no current when idle
+    }
     updateTimerFromParams();
     Serial.println("OK RUN");
     flash_led();
@@ -248,6 +349,7 @@ void handleLine(String line) {
   if (line == "STOP") {
     running = false;
     updateTimerFromParams();
+    digitalWrite(PIN_EN, HIGH);    // disable driver — no current when idle
     Serial.println("OK STOP");
     flash_led();
     return;
@@ -283,11 +385,14 @@ void setup() {
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
 
-  // Stepper
+  // Stepper step/dir pins
   pinMode(PIN_STEP, OUTPUT);
   pinMode(PIN_DIR,  OUTPUT);
   digitalWrite(PIN_STEP, LOW);
-  digitalWrite(PIN_DIR,  LOW);
+  digitalWrite(PIN_DIR,  HIGH);
+
+  // TMC5160 via SPI
+  initTMC5160();
 
   // Step timer: 1 µs tick, prescaler 80
   timer0 = timerBegin(0, 80, true);
@@ -305,18 +410,18 @@ void setup() {
   pinMode(HX711_DOUT, INPUT);
   pinMode(HX711_SCK,  OUTPUT);
   digitalWrite(HX711_SCK, LOW);
-  delay(500);          // let HX711 power up
-  hx711_tare();        // zero at startup
+  delay(500);
+  hx711_tare();
 
   Serial.println("READY");
-  Serial.println("Pins: STEP=16 DIR=17 CAL_CLK=27 CAL_DATA=26 HX711_DOUT=32 HX711_SCK=33");
+  Serial.println("Driver: TMC5160 Pro  Microsteps: 16x+INTPOL(256)  SPR: 3200");
+  Serial.println("Pins: STEP=16 DIR=17 EN=4 CS=22 SCK=18 MISO=19 MOSI=23");
+  Serial.println("Pins: CAL_CLK=27 CAL_DATA=26 HX711_DOUT=32 HX711_SCK=33");
 }
 
 // =====================================================================
 // Loop
 // =====================================================================
-
-// Send a force reading every ~100 ms (matches HX711 10 Hz output rate)
 static uint32_t last_force_ms = 0;
 
 void loop() {
@@ -353,8 +458,9 @@ void loop() {
     flash_led(10);
   }
 
-  // Force output — poll HX711 at ~10 Hz
   uint32_t now = millis();
+
+  // Force output — poll HX711 at ~10 Hz
   if (now - last_force_ms >= 100 && hx711_ready()) {
     last_force_ms = now;
     float newtons = hx711_get_newtons();
@@ -362,4 +468,5 @@ void loop() {
     Serial.print(newtons, 3);
     Serial.println(" N");
   }
+
 }

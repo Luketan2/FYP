@@ -346,6 +346,24 @@
   <div class="main">
 
     <div class="card">
+      <div class="card-title">Homing</div>
+      <div class="row">
+        <button class="btn-primary" id="btn-home" onclick="runHome()" disabled>⌂ Home</button>
+        <label style="margin-left:12px">Offset (mm):</label>
+        <input type="number" id="home-offset-mm" value="5" min="0.1" step="0.5" style="width:80px"
+               title="Distance to move forward after hitting the stop"/>
+        <label style="margin-left:12px">StallGuard threshold (SGT):</label>
+        <input type="number" id="home-sgt" value="5" min="-64" max="63" style="width:64px"
+               title="Higher = more sensitive; tune if it false-triggers or misses"/>
+        <span id="home-status" style="margin-left:16px;font-weight:700;color:var(--muted)">—</span>
+      </div>
+      <p class="muted" style="margin-top:6px;font-size:0.78rem">
+        Wire TMC5160 DIAG0 pad → ESP32 GPIO34 for hardware stall interrupt.
+        Offset is converted to steps using the Pitch and SPR set in Test Setup below.
+      </p>
+    </div>
+
+    <div class="card">
       <div class="card-title">Test Setup</div>
       <div class="row">
         <label>Speed (mm/min):</label>
@@ -355,7 +373,7 @@
         <input type="number" id="shear-pitch" value="8" min="0.001" step="0.1" style="width:88px"/>
 
         <label style="margin-left:12px">SPR:</label>
-        <input type="number" id="shear-spr" value="6400" min="1" style="width:80px"/>
+        <input type="number" id="shear-spr" value="3200" min="1" style="width:80px"/>
         <span class="muted">→ RPM = speed ÷ pitch</span>
 
         <label style="margin-left:12px">Direction:</label>
@@ -379,6 +397,7 @@
         <input type="number" id="auto-stop-dist" value="10" min="0.1" step="0.5" style="width:80px" title="Stop test automatically when displacement reaches this value"/>
         <input type="checkbox" id="auto-stop-chk" checked style="margin-left:4px"/>
         <label for="auto-stop-chk" style="margin-left:2px">enabled</label>
+
       </div>
       <div class="row">
         <button id="btn-start" class="btn-success" onclick="startTest()" disabled>▶ START TEST</button>
@@ -431,8 +450,9 @@
 
       <div class="row">
         <label>Steps / Rev (SPR):</label>
-        <input type="number" id="step-spr" value="6400" min="1" style="width:100px"/>
+        <input type="number" id="step-spr" value="3200" min="1" style="width:100px"/>
         <button class="btn-primary" onclick="applySpr()">Apply SPR</button>
+        <span class="muted">3200 = 16× microstep, driver interpolates to 256× internally</span>
       </div>
 
       <div class="row" style="margin-top:8px">
@@ -441,7 +461,10 @@
         <button class="btn-danger"    onclick="stopStepper()">■ STOP</button>
       </div>
 
-      <p class="muted" style="margin-top:14px">STEP = GPIO16 &nbsp;|&nbsp; DIR = GPIO17</p>
+      <p class="muted" style="margin-top:14px">
+        Driver: TMC5160 Pro &nbsp;|&nbsp; STEP=GPIO16 &nbsp;|&nbsp; DIR=GPIO17 &nbsp;|&nbsp;
+        EN=GPIO4 &nbsp;|&nbsp; CS=GPIO5 &nbsp;|&nbsp; SPI: SCK=18 MISO=19 MOSI=23
+      </p>
     </div>
   </div>
 </div>
@@ -1090,7 +1113,7 @@ let serialReader = null;
 const s = {
   connected:    false,
   rpm:          10,
-  spr:          200,
+  spr:          3200,
   dirState:     0,
   forceValue:   0,
   forceFlip:    -1,          // 1 or -1, toggled by Flip button
@@ -1127,6 +1150,7 @@ async function connectSerial() {
     document.getElementById('btn-connect').disabled    = true;
     document.getElementById('btn-disconnect').disabled = false;
     document.getElementById('btn-start').disabled      = false;
+    document.getElementById('btn-home').disabled        = false;
 
     // Initial handshake
     await sendCmd(`RPM ${s.rpm}`);
@@ -1244,6 +1268,39 @@ function processLine(line) {
       if (s.testRunning) recordShearPoint();
     }
   }
+
+  // Homing status messages
+  const homeStatus = document.getElementById('home-status');
+  if (line === 'HOMING') {
+    if (homeStatus) { homeStatus.textContent = 'Homing…'; homeStatus.style.color = 'var(--primary)'; }
+    document.getElementById('btn-home').disabled = true;
+    return;
+  }
+  if (line === 'HOMED') {
+    if (homeStatus) { homeStatus.textContent = '✓ Homed'; homeStatus.style.color = 'var(--success)'; }
+    document.getElementById('btn-home').disabled = false;
+    return;
+  }
+  if (line === 'HOME_FAIL') {
+    if (homeStatus) { homeStatus.textContent = '✗ Failed — increase SGT or check wiring'; homeStatus.style.color = 'var(--danger)'; }
+    document.getElementById('btn-home').disabled = false;
+    return;
+  }
+
+}
+
+// ── Homing ─────────────────────────────────────────────────────────────────
+async function runHome() {
+  const offsetMm  = parseFloat(document.getElementById('home-offset-mm').value) || 5;
+  const sgt       = parseInt(document.getElementById('home-sgt').value) || 5;
+  const pitch     = parseFloat(document.getElementById('shear-pitch').value) || 8;
+  const spr       = parseFloat(document.getElementById('shear-spr').value) || 3200;
+  const offsetSteps = Math.round(offsetMm * spr / pitch);
+
+  const homeStatus = document.getElementById('home-status');
+  if (homeStatus) { homeStatus.textContent = 'Sending…'; homeStatus.style.color = 'var(--muted)'; }
+
+  await sendCmd(`HOME ${offsetSteps} ${sgt}`);
 }
 
 // ── Moving average ─────────────────────────────────────────────────────────
@@ -1273,7 +1330,7 @@ async function applyRpm() {
   await sendCmd(`RPM ${s.rpm}`);
 }
 async function applySpr() {
-  s.spr = parseFloat(document.getElementById('step-spr').value) || 200;
+  s.spr = parseFloat(document.getElementById('step-spr').value) || 3200;
   await sendCmd(`SPR ${s.spr}`);
 }
 async function runForward() {
@@ -1299,7 +1356,7 @@ function toggleForceFlip() {
 async function startTest() {
   const speed = parseFloat(document.getElementById('shear-speed').value) || 10;   // mm/min
   const pitch = parseFloat(document.getElementById('shear-pitch').value) || 8;    // mm/rev
-  const spr   = parseFloat(document.getElementById('shear-spr').value)   || 200;
+  const spr   = parseFloat(document.getElementById('shear-spr').value)   || 3200;
 
   // Sync SPR to global state and send to ESP
   s.spr = spr;
@@ -1336,9 +1393,9 @@ async function stopTest() {
 
 // Displacement = commanded speed (mm/min) × elapsed time (min)
 function recordShearPoint() {
-  const elapsed = (performance.now() / 1000) - s.testStartTime;   // seconds
-  const dispMm  = s.testSpeedMmMin * (elapsed / 60.0);            // mm
-  const force   = s.forceValue * s.forceFlip;
+  const elapsed    = (performance.now() / 1000) - s.testStartTime;   // seconds
+  const dispMm     = s.testSpeedMmMin * (elapsed / 60.0);            // mm
+  const force = s.forceValue * s.forceFlip;
 
   s.testData.push([dispMm, force]);
 
@@ -1381,8 +1438,10 @@ function buildCSVContent(meta = {}) {
   if (meta.replicate    !== '')                csv += `# Replicate: ${meta.replicate}\n`;
   if (meta.description)                        csv += `# Setup Description: ${meta.description}\n`;
   if (meta.notes)                              csv += `# Notes: ${meta.notes}\n`;
-  csv     += 'Displacement (mm),Shear Force (N)\n';
-  s.testData.forEach(([d, f]) => csv += `${d.toFixed(4)},${f.toFixed(4)}\n`);
+  csv += 'Displacement (mm),Shear Force (N)\n';
+  s.testData.forEach(([d, f]) => {
+    csv += `${d.toFixed(4)},${f.toFixed(4)}\n`;
+  });
   return csv;
 }
 
@@ -2954,16 +3013,19 @@ function setStatus(msg, cls) {
 const shearChart = new Chart(
   document.getElementById('shear-chart').getContext('2d'), {
     type: 'line',
-    data: { datasets: [{
-      label: 'Shear Force',
-      data:  [],
-      borderColor:     '#1a56db',
-      backgroundColor: 'rgba(26,86,219,.07)',
-      pointRadius: 2,
-      borderWidth: 1.5,
-      tension: 0.1,
-      fill: true,
-    }]},
+    data: { datasets: [
+      {
+        label: 'Shear Force (N)',
+        data:  [],
+        yAxisID: 'y',
+        borderColor:     '#1a56db',
+        backgroundColor: 'rgba(26,86,219,.07)',
+        pointRadius: 2,
+        borderWidth: 1.5,
+        tension: 0.1,
+        fill: true,
+      },
+    ]},
     options: {
       animation: false, responsive: true, maintainAspectRatio: false,
       parsing: { xAxisKey: 'x', yAxisKey: 'y' },
