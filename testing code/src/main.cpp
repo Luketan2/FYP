@@ -228,6 +228,7 @@ bool hx711_ready() {
 // Read 24-bit signed value, leave chip set for gain-128 channel-A next read
 int32_t hx711_read_raw() {
   int32_t val = 0;
+  noInterrupts();   // prevent step-timer ISR stretching SCK pulses mid-transfer
   for (int i = 0; i < 24; i++) {
     digitalWrite(HX711_SCK, HIGH);
     delayMicroseconds(1);
@@ -240,6 +241,7 @@ int32_t hx711_read_raw() {
   delayMicroseconds(1);
   digitalWrite(HX711_SCK, LOW);
   delayMicroseconds(1);
+  interrupts();
 
   // Sign-extend 24-bit → 32-bit
   if (val & 0x800000) val |= 0xFF000000;
@@ -258,7 +260,7 @@ void hx711_tare(int samples = 8) {
     }
     delay(5);
   }
-  if (got > 0) hx711_offset = (float)(sum / got);
+  if (got > 0) hx711_offset = (float)sum / got;
 }
 
 // Returns force in Newtons
