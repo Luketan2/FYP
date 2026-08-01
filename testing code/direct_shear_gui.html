@@ -334,6 +334,7 @@
 <div class="tabs">
   <button class="tab-btn active" onclick="switchTab('shear',   this)">Direct Shear Test</button>
   <button class="tab-btn"        onclick="switchTab('stepper', this)">Stepper Test</button>
+  <button class="tab-btn"        onclick="switchTab('vib',     this); updateVibCalc()">Sample Prep (Vibration)</button>
   <button class="tab-btn"        onclick="switchTab('force',   this)">Force Gauge Test</button>
   <button class="tab-btn"        onclick="switchTab('cal',this);initCalChart();refreshCalFileList();if(!document.getElementById('cal-date').value)document.getElementById('cal-date').value=new Date().toISOString().slice(0,10)">Load Cell Cal</button>
   <button class="tab-btn"        onclick="switchTab('plots',   this); refreshFileList()">View Plots</button>
@@ -466,6 +467,109 @@
         EN=GPIO4 &nbsp;|&nbsp; CS=GPIO5 &nbsp;|&nbsp; SPI: SCK=18 MISO=19 MOSI=23
       </p>
     </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB — Sample Prep (Vibration Table)                           -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="tab-vib" class="tab-pane">
+  <div class="main">
+
+    <div class="card" style="border-left:4px solid var(--danger)">
+      <div class="card-title">⚠ Motor Swap Procedure</div>
+      <p class="muted" style="line-height:1.6">
+        This tab drives a <b>different motor</b> on the same TMC5160. Unplugging a stepper while
+        the driver is energised dumps the winding's stored energy into the output stage and will
+        destroy it. Every time you change motors:
+      </p>
+      <ol class="muted" style="margin:8px 0 10px 22px;line-height:1.7">
+        <li>Press <b>Disable Driver</b> below (or STOP) — EN goes high, no current flows.</li>
+        <li><b>Switch off the motor supply (VM) at the PSU.</b> The GUI cannot do this for you.</li>
+        <li>Swap the motor connector.</li>
+        <li>Confirm the correct run current for the motor now fitted, then power VM back on.</li>
+      </ol>
+      <div class="row">
+        <button class="btn-danger" onclick="disableDriver()">⏻ Disable Driver (safe to swap)</button>
+        <span id="vib-swap-note" class="muted"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Vibration Motor — Power</div>
+      <div class="row">
+        <label>Run current:</label>
+        <input type="number" id="vib-current" value="800" min="100" max="3000" step="50" style="width:100px"/>
+        <span class="muted">mA rms</span>
+        <button class="btn-primary" onclick="applyVibCurrent()">Apply</button>
+        <span class="muted">Sets the torque the shaker can deliver. Match the motor's rating — this
+          value is stored separately from the shear motor's.</span>
+      </div>
+      <div class="row">
+        <label>Shear motor current:</label>
+        <input type="number" id="shear-current" value="1000" min="100" max="3000" step="50" style="width:100px"/>
+        <span class="muted">mA rms</span>
+        <button class="btn-secondary" onclick="applyShearCurrent()">Apply</button>
+        <span class="muted">Restored automatically whenever vibration stops.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Vibration</div>
+      <div class="row">
+        <label>Frequency:</label>
+        <input type="number" id="vib-hz" value="60" min="1" max="500" step="1"
+               style="width:100px" oninput="updateVibCalc()"/>
+        <span class="muted">Hz</span>
+
+        <label style="margin-left:18px">Amplitude:</label>
+        <input type="number" id="vib-amp" value="20" min="1" max="2000" step="1"
+               style="width:100px" oninput="updateVibCalc()"/>
+        <span class="muted">microsteps peak-to-peak</span>
+      </div>
+
+      <div class="row">
+        <label>Rotor inertia:</label>
+        <input type="number" id="vib-inertia" value="300" min="1" step="10"
+               style="width:100px" oninput="updateVibCalc()"/>
+        <span class="muted">g·cm² (nameplate — used only for the torque estimate below)</span>
+
+        <label style="margin-left:18px">Steps/rev:</label>
+        <input type="number" id="vib-spr" value="3200" min="1" step="200"
+               style="width:100px" oninput="updateVibCalc()"/>
+        <span class="muted">3200 for a 1.8° motor at 16× microstep</span>
+      </div>
+
+      <div class="row" style="margin-top:6px">
+        <label>Duration:</label>
+        <input type="number" id="vib-duration" value="8" min="0" step="0.5" style="width:100px"/>
+        <span class="muted">minutes (0 = run until stopped). ASTM D4253 uses 8 min.</span>
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid var(--border);border-radius:var(--radius);
+                  padding:10px 14px;margin:12px 0;line-height:1.9">
+        <div><span class="muted">Step rate:</span> <b id="vib-steprate">—</b></div>
+        <div><span class="muted">Shaft oscillation:</span> <b id="vib-angle">—</b> peak-to-peak</div>
+        <div><span class="muted">Est. peak reaction torque into table:</span> <b id="vib-torque">—</b></div>
+        <div id="vib-warn" style="color:var(--danger);font-weight:600;display:none"></div>
+      </div>
+
+      <div class="row">
+        <button class="btn-success" id="btn-vib-start" onclick="startVib()">▶ START VIBRATION</button>
+        <button class="btn-danger"  id="btn-vib-stop"  onclick="stopVib()" disabled>■ STOP</button>
+        <span id="vib-status" class="muted" style="margin-left:12px">Idle</span>
+      </div>
+
+      <p class="muted" style="margin-top:14px;line-height:1.6">
+        The motor is bolted to the table with a bare shaft, so it acts as a <b>reaction-mass
+        shaker</b>: the rotor oscillates and the table feels the reaction as a torque couple about
+        the shaft axis. Amplitude is set in microsteps because there is no leadscrew — the shaft
+        angle above is the physical quantity. While vibration is active the firmware switches the
+        driver to SpreadCycle with interpolation off (StealthChop cannot track reversals at this
+        rate) and refuses shear-axis commands.
+      </p>
+    </div>
+
   </div>
 </div>
 
@@ -1167,6 +1271,7 @@ async function connectSerial() {
 
 async function disconnectSerial() {
   if (s.testRunning) await stopTest();
+  if (vibRunning)    await stopVib();
   s.connected = false;
 
   try {
@@ -1222,6 +1327,25 @@ async function sendCmd(cmd) {
 // ── Parse incoming serial lines ────────────────────────────────────────────
 function processLine(line) {
   if (!line) return;
+
+  // OK VIB <hz> <amp> <stepHz> — firmware reports what it ACTUALLY set,
+  // which may be a clamped amplitude. Show the truth, not the request.
+  if (line.startsWith('OK VIB ')) {
+    const p = line.split(' ');
+    if (p.length >= 5) {
+      const amp = parseInt(p[3]);
+      const req = parseInt(document.getElementById('vib-amp').value);
+      if (amp && amp !== req) {
+        setVibStatus(`Running — amplitude clamped by firmware to ${amp} microsteps`, true);
+      }
+    }
+    return;
+  }
+
+  if (line.startsWith('ERR VIB_ACTIVE')) {
+    setVibStatus('Firmware refused: vibration is active — stop it before driving the shear axis', true);
+    return;
+  }
 
   // CAL <value> <unit>
   if (line.startsWith('CAL ')) {
@@ -1345,6 +1469,118 @@ async function runBackward() {
 }
 async function stopStepper() { await sendCmd('STOP'); }
 
+// ── Sample-prep vibration table ────────────────────────────────────────────
+// Separate motor, swapped onto the same driver. Amplitude is in microsteps
+// because the shaft is bare — there is no leadscrew to convert to mm.
+let vibRunning   = false;
+let vibTickTimer = null;
+let vibEndTime   = null;
+
+function vibInputs() {
+  return {
+    hz:      parseFloat(document.getElementById('vib-hz').value)      || 60,
+    amp:     parseInt(document.getElementById('vib-amp').value)       || 20,
+    spr:     parseFloat(document.getElementById('vib-spr').value)     || 3200,
+    inertia: parseFloat(document.getElementById('vib-inertia').value) || 300,
+    current: parseInt(document.getElementById('vib-current').value)   || 800,
+    minutes: parseFloat(document.getElementById('vib-duration').value),
+  };
+}
+
+function updateVibCalc() {
+  const v = vibInputs();
+
+  // amp microsteps out + amp back per cycle
+  const stepHz   = 2 * v.hz * v.amp;
+  const degPP    = v.amp / v.spr * 360;
+  const thetaAmp = (v.amp / v.spr) * Math.PI;      // half of p-p, radians
+  const omega    = 2 * Math.PI * v.hz;
+  const J        = v.inertia * 1e-7;               // g·cm² → kg·m²
+  const torque   = J * thetaAmp * omega * omega;
+
+  document.getElementById('vib-steprate').textContent =
+    `${stepHz.toFixed(0)} steps/s  (timer ISR ${(2 * stepHz / 1000).toFixed(1)} kHz)`;
+  document.getElementById('vib-angle').textContent =
+    `${degPP.toFixed(3)}°  (${v.amp} microsteps at ${v.spr} steps/rev)`;
+  document.getElementById('vib-torque').textContent = `${torque.toFixed(3)} N·m`;
+
+  // Firmware clamps the ISR to 100 kHz → ampMax = 100000 / (4·f)
+  const ampMax = Math.max(1, Math.floor(25000 / v.hz));
+  const warn   = document.getElementById('vib-warn');
+  if (v.amp > ampMax) {
+    warn.textContent = `Amplitude will be clamped to ${ampMax} microsteps — 100 kHz ISR ceiling at ${v.hz} Hz.`;
+    warn.style.display = 'block';
+  } else if (torque > 1.5) {
+    warn.textContent = `Estimated ${torque.toFixed(2)} N·m is beyond a typical NEMA 23 — the rotor will not track the command and the motor will buzz or stall. Reduce amplitude or frequency.`;
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+async function applyVibCurrent() {
+  const mA = parseInt(document.getElementById('vib-current').value) || 800;
+  await sendCmd(`VIBCUR ${mA}`);
+}
+
+async function applyShearCurrent() {
+  const mA = parseInt(document.getElementById('shear-current').value) || 1000;
+  await sendCmd(`SHEARCUR ${mA}`);
+}
+
+async function disableDriver() {
+  await stopVib();
+  await sendCmd('STOP');
+  const note = document.getElementById('vib-swap-note');
+  note.textContent = 'Driver disabled — now switch off VM at the PSU before unplugging.';
+  note.style.color = 'var(--danger)';
+}
+
+async function startVib() {
+  if (!s.connected)  { setVibStatus('Not connected', true); return; }
+  if (s.testRunning) { setVibStatus('Stop the shear test first', true); return; }
+
+  const v = vibInputs();
+  await sendCmd(`VIBCUR ${v.current}`);
+  await sendCmd(`VIB ${v.hz} ${v.amp}`);
+
+  vibRunning = true;
+  document.getElementById('btn-vib-start').disabled = true;
+  document.getElementById('btn-vib-stop').disabled  = false;
+  document.getElementById('vib-swap-note').textContent = '';
+
+  vibEndTime = (v.minutes > 0) ? performance.now() / 1000 + v.minutes * 60 : null;
+  if (vibTickTimer) clearInterval(vibTickTimer);
+  vibTickTimer = setInterval(vibTick, 250);
+  vibTick();
+}
+
+async function stopVib() {
+  if (vibTickTimer) { clearInterval(vibTickTimer); vibTickTimer = null; }
+  vibEndTime = null;
+  if (vibRunning) await sendCmd('VIB 0');
+  vibRunning = false;
+  document.getElementById('btn-vib-start').disabled = false;
+  document.getElementById('btn-vib-stop').disabled  = true;
+  setVibStatus('Idle', false);
+}
+
+function vibTick() {
+  if (!vibRunning) return;
+  if (vibEndTime === null) { setVibStatus('Running (no time limit)', false); return; }
+  const left = vibEndTime - performance.now() / 1000;
+  if (left <= 0) { stopVib().then(() => setVibStatus('Finished — duration elapsed', false)); return; }
+  const m = Math.floor(left / 60), sec = Math.floor(left % 60);
+  setVibStatus(`Running — ${m}:${String(sec).padStart(2, '0')} remaining`, false);
+}
+
+function setVibStatus(msg, isError) {
+  const el = document.getElementById('vib-status');
+  if (!el) return;
+  el.textContent  = msg;
+  el.style.color  = isError ? 'var(--danger)' : 'var(--muted)';
+}
+
 // ── Force flip ─────────────────────────────────────────────────────────────
 function toggleForceFlip() {
   s.forceFlip *= -1;
@@ -1354,6 +1590,12 @@ function toggleForceFlip() {
 
 // ── Shear test ─────────────────────────────────────────────────────────────
 async function startTest() {
+  // The vibration table is a different motor on the same driver — never drive
+  // the shear axis while it is running.
+  if (vibRunning) {
+    alert('Vibration is running. Stop it and confirm the shear motor is connected before starting a test.');
+    return;
+  }
   const speed = parseFloat(document.getElementById('shear-speed').value) || 10;   // mm/min
   const pitch = parseFloat(document.getElementById('shear-pitch').value) || 8;    // mm/rev
   const spr   = parseFloat(document.getElementById('shear-spr').value)   || 3200;
