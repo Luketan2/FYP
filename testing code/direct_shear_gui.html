@@ -262,6 +262,7 @@
     }
     .tree-folder-row:hover .tree-new-btn { opacity: 1; }
     .tree-new-btn:hover { background: #e0e7ff; color: var(--primary); }
+    .tree-edit-btn { font-size: 0.82rem; font-weight: 400; }
 
     /* ── Organise tab ────────────────────────────────────────────── */
     .organise-layout { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: start; }
@@ -1197,6 +1198,74 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════ -->
+<!-- Edit Metadata Modal                                            -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="edit-meta-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">Edit Test Metadata</div>
+    <p class="modal-subtitle">
+      Editing <strong id="edit-meta-filename" style="word-break:break-all"></strong><br/>
+      Changes are written into the CSV header on disk. The measured data rows are never touched,
+      and you get a summary to confirm before anything is written.
+    </p>
+    <div class="modal-grid">
+      <div class="modal-field">
+        <label>Sand / Material Type</label>
+        <input type="text" id="edit-meta-sand" placeholder="e.g. dry Ottawa sand"/>
+      </div>
+      <div class="modal-field">
+        <label>Density / Condition</label>
+        <input type="text" id="edit-meta-density" placeholder="e.g. dense, Dr = 65 %"/>
+      </div>
+      <div class="modal-field">
+        <label>Normal Force (N)</label>
+        <input type="number" id="edit-meta-nf" step="1" min="0" placeholder="e.g. 500"/>
+      </div>
+      <div class="modal-field">
+        <label>Moisture Content (%)</label>
+        <input type="number" id="edit-meta-moisture" step="0.1" min="0" max="100"/>
+      </div>
+      <div class="modal-field">
+        <label>Temperature (°C)</label>
+        <input type="number" id="edit-meta-temp" step="0.5"/>
+      </div>
+      <div class="modal-field">
+        <label>Shear Speed (mm/min)</label>
+        <input type="number" id="edit-meta-speed" step="0.1" min="0"/>
+      </div>
+      <div class="modal-field">
+        <label>Sample Height (mm)</label>
+        <input type="number" id="edit-meta-height" step="0.5" min="0"/>
+      </div>
+      <div class="modal-field">
+        <label>Operator</label>
+        <input type="text" id="edit-meta-operator"/>
+      </div>
+      <div class="modal-field">
+        <label>Test Series</label>
+        <input type="text" id="edit-meta-series"/>
+      </div>
+      <div class="modal-field">
+        <label>Replicate #</label>
+        <input type="number" id="edit-meta-rep" step="1" min="1" max="99"/>
+      </div>
+      <div class="modal-field full">
+        <label>Setup Description</label>
+        <input type="text" id="edit-meta-desc"/>
+      </div>
+      <div class="modal-field full">
+        <label>Notes</label>
+        <textarea id="edit-meta-notes"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeEditMetaModal()">Cancel</button>
+      <button class="btn-primary"   onclick="saveEditedMeta()">Review &amp; save to file ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
 <!-- JavaScript                                                     -->
 <!-- ══════════════════════════════════════════════════════════════ -->
 <script>
@@ -1889,11 +1958,15 @@ document.getElementById('file-list').addEventListener('click', e => {
     return;
   }
   const newBtn      = e.target.closest('[data-action="new-subfolder"]');
+  const renameBtn   = e.target.closest('[data-action="rename-folder"]');
   const chevron     = e.target.closest('[data-action="toggle-folder"]');
   const folderLabel = e.target.closest('[data-action="select-folder"]');
   const moveBtn     = e.target.closest('[data-org-move]');
   const delBtn      = e.target.closest('[data-org-delete-file]');
-  if (newBtn)  { treeNewFolder(newBtn.dataset.path); return; }
+  const editMetaBtn = e.target.closest('[data-meta-edit]');
+  if (newBtn)      { treeNewFolder(newBtn.dataset.path); return; }
+  if (renameBtn)   { renameFolder(renameBtn.dataset.path); return; }
+  if (editMetaBtn) { openEditMetaDialog(editMetaBtn.dataset.metaEdit); return; }
   if (moveBtn) { openMoveFileDialog(moveBtn.dataset.orgMove); return; }
   if (delBtn)  { deleteFile(delBtn.dataset.orgDeleteFile); return; }
   if (chevron) {
@@ -1930,10 +2003,14 @@ document.addEventListener('click', e => {
   if (!contentEl) return;
 
   const deleteDir   = e.target.closest('[data-org-delete-dir]');
+  const renameDir   = e.target.closest('[data-org-rename-dir]');
   const moveFile    = e.target.closest('[data-org-move]');
   const deleteFile2 = e.target.closest('[data-org-delete-file]');
+  const editMeta    = e.target.closest('[data-meta-edit]');
   const folderNav   = e.target.closest('[data-org-path]');
 
+  if (renameDir   && contentEl.contains(renameDir))   { renameFolder(renameDir.dataset.orgRenameDir); return; }
+  if (editMeta    && contentEl.contains(editMeta))    { openEditMetaDialog(editMeta.dataset.metaEdit); return; }
   if (deleteDir   && contentEl.contains(deleteDir))   { deleteFolder(deleteDir.dataset.orgDeleteDir); return; }
   if (moveFile    && contentEl.contains(moveFile))     { openMoveFileDialog(moveFile.dataset.orgMove); return; }
   if (deleteFile2 && contentEl.contains(deleteFile2))  { deleteFile(deleteFile2.dataset.orgDeleteFile); return; }
@@ -2594,17 +2671,29 @@ function countFiles(node) {
   return node.children.reduce((s, c) => s + countFiles(c), 0);
 }
 
-async function refreshFileList() {
+// pathRemap {from,to}: a folder was renamed — carry the selection across the rename
+async function refreshFileList(pathRemap = null) {
   const container = document.getElementById('file-list');
   if (!dirHandle) {
     container.innerHTML = '<span class="muted" style="font-size:0.8rem">Select a save folder first.</span>';
     return;
   }
+  // Remember what was ticked by path — indices shift whenever the tree is rebuilt
+  const prevSelected = new Set();
+  _selectedIndices.forEach(i => {
+    let p = _allFileEntries[i]?.path;
+    if (!p) return;
+    if (pathRemap && (p === pathRemap.from || p.startsWith(pathRemap.from + '/')))
+      p = pathRemap.to + p.slice(pathRemap.from.length);
+    prevSelected.add(p);
+  });
+
   container.innerHTML = '<span class="muted" style="font-size:0.8rem">Scanning…</span>';
   try {
     _folderTree     = await scanFolderRecursive(dirHandle, null, '');
     _allFileEntries = _collectFiles(_folderTree);
     _selectedIndices.clear();
+    _allFileEntries.forEach((n, i) => { if (prevSelected.has(n.path)) _selectedIndices.add(i); });
   } catch (e) {
     container.innerHTML = `<span class="muted">Error: ${e.message}</span>`;
     return;
@@ -2633,6 +2722,7 @@ function renderFileTree() {
           <span class="tree-chevron" data-action="toggle-folder" data-path="${escHtml(n.path)}" title="Expand / collapse">${exp ? '▾' : '▸'}</span>
           <input type="checkbox" class="folder-select-chk" data-folder-path="${escHtml(n.path)}" style="flex-shrink:0;margin:0 3px" title="Select all in folder"/>
           <span class="tree-folder-label" data-action="select-folder" data-folder-path="${escHtml(n.path)}" style="cursor:pointer;flex:1">📁 ${escHtml(n.name)}</span>
+          <button class="tree-new-btn tree-edit-btn" data-action="rename-folder" data-path="${escHtml(n.path)}" title="Rename folder">✎</button>
           <button class="tree-new-btn" data-action="new-subfolder" data-path="${escHtml(n.path)}" title="New subfolder">+</button>
         </div>`;
         if (exp) html += renderNodes(n.children, depth + 1);
@@ -2659,6 +2749,7 @@ function renderFileTree() {
             <input type="color" class="series-color" data-idx="${idx}" value="${color}" title="Series colour"/>
             <input type="text" class="series-name-input" data-idx="${idx}" value="${escHtml(defName)}" placeholder="series name" style="flex:1;min-width:0"/>
             ${infoBtn}
+            <button class="btn-secondary" style="font-size:0.72rem;padding:2px 7px;flex-shrink:0" data-meta-edit="${escHtml(n.path)}" title="Edit metadata (normal force, sand type…)">✎</button>
             <button class="btn-secondary" style="font-size:0.72rem;padding:2px 7px;flex-shrink:0" data-org-move="${escHtml(n.path)}" title="Move file">Move</button>
             <button class="btn-danger"    style="font-size:0.72rem;padding:2px 6px;flex-shrink:0" data-org-delete-file="${escHtml(n.path)}" title="Delete file">🗑</button>
         </div>`;
@@ -2762,6 +2853,7 @@ function renderOrgContent() {
           📁 <strong>${escHtml(d.name)}</strong>
           <span class="muted" style="font-size:0.78rem;margin-left:6px">${fc} file${fc !== 1 ? 's' : ''}</span>
         </span>
+        <button class="btn-secondary" style="font-size:0.75rem;padding:3px 8px" data-org-rename-dir="${escHtml(d.path)}" title="Rename folder">✎</button>
         <button class="btn-danger" style="font-size:0.75rem;padding:3px 8px" data-org-delete-dir="${escHtml(d.path)}" title="Delete folder">🗑</button>
       </div>`;
     }
@@ -2792,6 +2884,7 @@ function renderOrgContent() {
           ${infoBtn2}
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;align-items:flex-start;padding-top:2px">
+          <button class="btn-secondary" style="font-size:0.78rem;padding:4px 9px"  data-meta-edit="${escHtml(f.path)}" title="Edit metadata">✎</button>
           <button class="btn-secondary" style="font-size:0.78rem;padding:4px 10px" data-org-move="${escHtml(f.path)}">Move →</button>
           <button class="btn-danger"    style="font-size:0.78rem;padding:4px 8px"  data-org-delete-file="${escHtml(f.path)}">🗑</button>
         </div>
@@ -2889,6 +2982,202 @@ async function deleteFolder(folderPath) {
     await node.parentHandle.removeEntry(node.name, { recursive: true });
     await refreshFileList();
   } catch (e) { alert('Delete failed: ' + e.message); }
+}
+
+// ── Rename folder ──────────────────────────────────────────────────────────
+// The File System Access API has no portable rename, so this is copy-then-delete
+// unless the browser offers an atomic handle.move(). The original is only removed
+// once every child has been copied successfully.
+function _remapPathPrefix(map, from, to) {
+  for (const key of [...map.keys()]) {
+    if (key === from || key.startsWith(from + '/')) {
+      map.set(to + key.slice(from.length), map.get(key));
+      map.delete(key);
+    }
+  }
+}
+
+function _remapSetPrefix(set, from, to) {
+  for (const key of [...set]) {
+    if (key === from || key.startsWith(from + '/')) {
+      set.delete(key);
+      set.add(to + key.slice(from.length));
+    }
+  }
+}
+
+async function _copyDirRecursive(srcDir, dstDir) {
+  for await (const [name, handle] of srcDir.entries()) {
+    if (handle.kind === 'directory') {
+      await _copyDirRecursive(handle, await dstDir.getDirectoryHandle(name, { create: true }));
+    } else {
+      const blob = await handle.getFile();
+      const wr   = await (await dstDir.getFileHandle(name, { create: true })).createWritable();
+      await wr.write(blob);
+      await wr.close();
+    }
+  }
+}
+
+async function renameFolder(folderPath) {
+  const node = findNodeByPath(folderPath);
+  if (!node || node.kind !== 'dir') return;
+
+  const entered = prompt(`Rename folder "${node.name}" to:`, node.name);
+  if (entered === null) return;                                  // cancelled
+  const newName = entered.trim().replace(/[/\\:*?"<>|]/g, '_');
+  if (!newName || newName === node.name) return;
+
+  const fc = countFiles(node);
+  if (!confirm(`Rename folder\n\n    "${node.name}"  →  "${newName}"\n\n${fc} file${fc !== 1 ? 's' : ''} will move with it.`)) return;
+
+  const ok = await _ensureDirPermission();
+  if (!ok) { alert('Permission denied — click Save Folder to reauthorize.'); return; }
+
+  const parentPath = folderPath.split('/').slice(0, -1).join('/');
+  try {
+    const parent = await getFreshDirHandle(parentPath);
+
+    // Never merge into something that already exists
+    let clash = false;
+    try { await parent.getDirectoryHandle(newName); clash = true; } catch (_) {}
+    try { await parent.getFileHandle(newName);      clash = true; } catch (_) {}
+    if (clash) { alert(`"${newName}" already exists here — choose a different name.`); return; }
+
+    const src = await parent.getDirectoryHandle(node.name);
+    let moved = false;
+    if (typeof src.move === 'function') {
+      try { await src.move(newName); moved = true; } catch (_) { /* fall through to copy */ }
+    }
+    if (!moved) {
+      const dst = await parent.getDirectoryHandle(newName, { create: true });
+      await _copyDirRecursive(src, dst);
+      await parent.removeEntry(node.name, { recursive: true });
+    }
+
+    // Everything keyed by path has to follow the rename
+    const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+    _remapPathPrefix(_metaCache,   folderPath, newPath);
+    _remapPathPrefix(_dataCache,   folderPath, newPath);
+    _remapPathPrefix(_nfOverrides, folderPath, newPath);
+    _remapSetPrefix(_treeExpanded, folderPath, newPath);
+    if (_orgSelectedPath === folderPath || _orgSelectedPath?.startsWith(folderPath + '/'))
+      _orgSelectedPath = newPath + _orgSelectedPath.slice(folderPath.length);
+
+    await refreshFileList({ from: folderPath, to: newPath });
+    schedulePlot();
+  } catch (e) {
+    alert('Rename failed: ' + e.message + '\n\nNothing was deleted — check the folder before retrying.');
+  }
+}
+
+// ── Edit metadata of a saved test ──────────────────────────────────────────
+// Rewrites only the "# Key: Value" header lines of the CSV; data rows, unknown
+// comment lines and the original file name are left exactly as they were.
+// `unit` must match what buildCSVContent() writes, or the value stops parsing.
+const EDITABLE_META = [
+  { key: 'Sand Type',         id: 'edit-meta-sand'     },
+  { key: 'Density/Condition', id: 'edit-meta-density'  },
+  { key: 'Normal Force',      id: 'edit-meta-nf',       num: true, unit: 'N'      },
+  { key: 'Moisture Content',  id: 'edit-meta-moisture', num: true, unit: '%'      },
+  { key: 'Temperature',       id: 'edit-meta-temp',     num: true, unit: '°C'},
+  { key: 'Shear Speed',       id: 'edit-meta-speed',    num: true, unit: 'mm/min' },
+  { key: 'Sample Height',     id: 'edit-meta-height',   num: true, unit: 'mm'     },
+  { key: 'Operator',          id: 'edit-meta-operator' },
+  { key: 'Test Series',       id: 'edit-meta-series'   },
+  { key: 'Replicate',         id: 'edit-meta-rep',      num: true },
+  { key: 'Setup Description', id: 'edit-meta-desc'     },
+  { key: 'Notes',             id: 'edit-meta-notes'    },
+];
+
+let _editMetaPath = null;
+
+function openEditMetaDialog(filePath) {
+  const node = findFileByPath(filePath);
+  if (!node) { alert('File not found — refresh the list.'); return; }
+  _editMetaPath = filePath;
+  document.getElementById('edit-meta-filename').textContent = node.name;
+
+  const meta = node.meta || {};
+  EDITABLE_META.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el) return;
+    const cur = meta[f.key] || '';
+    if (f.num) { const n = parseFloat(cur); el.value = isNaN(n) ? '' : n; }
+    else       { el.value = f.key === 'Notes' ? cur.replace(/ \| /g, '\n') : cur; }
+  });
+  document.getElementById('edit-meta-modal').style.display = 'flex';
+}
+
+function closeEditMetaModal() {
+  document.getElementById('edit-meta-modal').style.display = 'none';
+  _editMetaPath = null;
+}
+
+function _escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function rewriteCSVMeta(text, updates) {
+  const lines = text.split('\n');
+  let end = 0;
+  while (end < lines.length && lines[end].trim().startsWith('#')) end++;
+  const head = lines.slice(0, end);
+  const body = lines.slice(end);
+
+  for (const [key, val] of Object.entries(updates)) {
+    const re  = new RegExp(`^#\\s*${_escRe(key)}\\s*:`);
+    const idx = head.findIndex(l => re.test(l.trim()));
+    if (val === '')      { if (idx >= 0) head.splice(idx, 1); }
+    else if (idx >= 0)   { head[idx] = `# ${key}: ${val}`; }
+    else                 { head.push(`# ${key}: ${val}`); }
+  }
+  return [...head, ...body].join('\n');
+}
+
+async function saveEditedMeta() {
+  const filePath = _editMetaPath;
+  const node     = filePath && findFileByPath(filePath);
+  if (!node) { alert('File not found — refresh the list.'); return; }
+
+  const meta = node.meta || {};
+  const updates = {}, changes = [];
+  for (const f of EDITABLE_META) {
+    const el = document.getElementById(f.id);
+    if (!el) continue;
+    let v = el.value.trim();
+    if (f.key === 'Notes') v = v.replace(/\n/g, ' | ');
+    if (v !== '' && f.unit) v = `${v} ${f.unit}`;
+    const before = meta[f.key] || '';
+    if (v === before) continue;                  // untouched keys are never rewritten
+    changes.push(`  ${f.key}:  ${before || '(none)'}  →  ${v || '(removed)'}`);
+    updates[f.key] = v;
+  }
+
+  if (!changes.length) { alert('Nothing changed.'); return; }
+  if (!confirm(`Write these changes into ${node.name}?\n\n${changes.join('\n')}`)) return;
+
+  const ok = await _ensureDirPermission();
+  if (!ok) { alert('Permission denied — click Save Folder to reauthorize.'); return; }
+
+  try {
+    const parentPath = filePath.split('/').slice(0, -1).join('/');
+    const parent = await getFreshDirHandle(parentPath);
+    const fh     = await parent.getFileHandle(node.name);
+    const text   = await (await fh.getFile()).text();
+
+    updates['Metadata edited'] = new Date().toISOString();
+    const wr = await fh.createWritable();
+    await wr.write(rewriteCSVMeta(text, updates));
+    await wr.close();
+
+    _metaCache.delete(filePath);
+    _dataCache.delete(filePath);
+    _nfOverrides.delete(filePath);   // the file is now the source of truth again
+    closeEditMetaModal();
+    await refreshFileList();
+    schedulePlot();
+  } catch (e) {
+    alert('Could not save metadata: ' + e.message);
+  }
 }
 
 function toggleSelectAll(masterCb) {
