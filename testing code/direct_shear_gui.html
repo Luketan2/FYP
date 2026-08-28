@@ -337,7 +337,7 @@
   <button class="tab-btn"        onclick="switchTab('stepper', this)">Stepper Test</button>
   <button class="tab-btn"        onclick="switchTab('vib',     this); updateVibCalc()">Sample Prep (Vibration)</button>
   <button class="tab-btn"        onclick="switchTab('force',   this)">Force Gauge Test</button>
-  <button class="tab-btn"        onclick="switchTab('cal',this);initCalChart();refreshCalFileList();if(!document.getElementById('cal-date').value)document.getElementById('cal-date').value=new Date().toISOString().slice(0,10)">Load Cell Cal</button>
+  <button class="tab-btn"        onclick="switchTab('cal',this);initCalChart();refreshCalFileList();updateApplyCalSource();if(!document.getElementById('cal-date').value)document.getElementById('cal-date').value=new Date().toISOString().slice(0,10)">Load Cell Cal</button>
   <button class="tab-btn"        onclick="switchTab('plots',   this); refreshFileList()">View Plots</button>
 </div>
 
@@ -612,13 +612,25 @@
 
       <hr/>
 
+      <div class="row">
+        <label>Amplifier gain (HX711 PGA):</label>
+        <select id="hx711-gain-sel" style="width:210px">
+          <option value="128">128 &nbsp;·&nbsp; ±20 mV &nbsp;·&nbsp; channel A</option>
+          <option value="64">64 &nbsp;·&nbsp; ±40 mV &nbsp;·&nbsp; channel A</option>
+          <option value="32">32 &nbsp;·&nbsp; ±80 mV &nbsp;·&nbsp; channel B</option>
+        </select>
+        <button class="btn-secondary" onclick="applyHx711Gain()">Apply gain</button>
+        <span id="hx711-gain-status" style="font-size:0.82rem;color:var(--muted)">Device gain: 128 (assumed — connect to confirm)</span>
+      </div>
+      <p class="muted" id="hx711-gain-range" style="font-size:0.8rem;line-height:1.5;margin-top:2px"></p>
+
       <div style="margin-top:8px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
           <div>
             <div style="font-size:0.82rem;font-weight:600;margin-bottom:3px">Active Calibration</div>
             <div id="hx711-cal-status" style="font-size:0.875rem;color:var(--muted)">No calibration active — raw counts passed through as-is</div>
           </div>
-          <button class="btn-secondary" onclick="switchTab('cal',document.querySelector('.tab-btn:nth-child(4)'));initCalChart();refreshCalFileList();" style="font-size:0.8rem;white-space:nowrap">⚙ Manage Cal</button>
+          <button class="btn-secondary" onclick="switchTab('cal',document.querySelector('.tab-btn:nth-child(5)'));initCalChart();refreshCalFileList();updateApplyCalSource();" style="font-size:0.8rem;white-space:nowrap">⚙ Manage Cal</button>
         </div>
         <p class="muted" style="margin-top:8px">HX711: DOUT = GPIO32 &nbsp;|&nbsp; SCK = GPIO33</p>
       </div>
@@ -653,6 +665,54 @@
       <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
         <span id="cal-active-status" style="font-size:0.85rem;color:var(--muted)">No calibration active — raw counts passed through as-is</span>
         <button id="btn-clear-gui-cal" class="btn-secondary" onclick="clearGuiCal()" style="font-size:0.78rem;padding:3px 8px;display:none">✕ Clear</button>
+      </div>
+    </div>
+
+    <!-- ── Apply calibration to already-saved tests ────────────────── -->
+    <div class="card">
+      <div class="card-title">Apply Calibration to Saved Test Files</div>
+      <p class="muted" style="line-height:1.6;margin-bottom:12px">
+        A test recorded while no calibration was active has <b>raw HX711 counts</b> in its Shear Force
+        column. This converts that column to Newtons after the fact, using the same expression the live
+        readout uses: <span style="font-family:monospace">F(N) = (raw − intercept) / slope</span>.
+        The original file is never modified — each conversion is written beside it as
+        <span style="font-family:monospace">…_cal.csv</span>.
+      </p>
+
+      <div class="row">
+        <span id="apply-cal-source" style="font-size:0.85rem;color:var(--muted)">
+          No calibration loaded — load a saved calibration above, or capture points below.
+        </span>
+      </div>
+
+      <div class="row" style="margin-top:4px">
+        <button class="btn-secondary" onclick="refreshApplyFileList()">↻ Scan test files</button>
+        <input type="checkbox" id="apply-cal-select-all" onchange="toggleApplySelectAll(this)" style="margin-left:10px"/>
+        <label for="apply-cal-select-all" class="muted" style="font-size:0.82rem">Select / deselect all</label>
+        <span id="apply-cal-count" class="muted" style="font-size:0.82rem;margin-left:auto">0 selected</span>
+      </div>
+
+      <div id="apply-cal-file-list"
+           style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;margin-top:6px">
+        <span class="muted" style="font-size:0.82rem">Choose a save folder, then press <b>Scan test files</b>.</span>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <input type="checkbox" id="apply-cal-invert" onchange="renderApplyPreview()"/>
+        <label for="apply-cal-invert" title="The recorded column is Flip ± × (raw − tare); combined with a negative slope the result can come out sign-flipped">
+          Invert sign of converted force
+        </label>
+        <input type="checkbox" id="apply-cal-skip-done" checked onchange="renderApplyPreview()" style="margin-left:16px"/>
+        <label for="apply-cal-skip-done">Skip files already calibrated</label>
+        <label style="margin-left:16px">Suffix:</label>
+        <input type="text" id="apply-cal-suffix" value="_cal" style="width:80px" title="Appended to the original filename"/>
+      </div>
+
+      <div id="apply-cal-preview" style="margin-top:10px"></div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn-success" id="btn-apply-cal-run" onclick="applyCalToFiles()" disabled>⚙ Convert selected files</button>
+        <span id="apply-cal-status" class="muted" style="font-size:0.82rem"></span>
       </div>
     </div>
 
@@ -1329,6 +1389,7 @@ async function connectSerial() {
     await sendCmd(`RPM ${s.rpm}`);
     await sendCmd(`DIR ${s.dirState}`);
     await sendCmd('STOP');
+    await sendCmd('STATUS');        // syncs the gain selector to the device
 
     // Start read loop (runs until disconnect)
     readLoop();
@@ -1407,6 +1468,37 @@ function processLine(line) {
       if (amp && amp !== req) {
         setVibStatus(`Running — amplitude clamped by firmware to ${amp} microsteps`, true);
       }
+    }
+    return;
+  }
+
+  // OK GAIN <gain> — firmware confirms the PGA re-range (it has also re-tared)
+  if (line.startsWith('OK GAIN ')) {
+    const g  = parseInt(line.split(' ')[2]);
+    const st = document.getElementById('hx711-gain-status');
+    if (!isNaN(g)) {
+      _hx711Gain = g;
+      _syncGainSelect();
+      updateHx711GainUI();
+      updateCalStatus();      // surfaces a calibration/gain mismatch
+    }
+    if (st) { st.textContent = `✓ Gain ${g} set, load cell re-tared`; st.style.color = 'var(--success)'; }
+    return;
+  }
+
+  if (line.startsWith('ERR GAIN')) {
+    const st = document.getElementById('hx711-gain-status');
+    if (st) { st.textContent = '✗ Firmware rejected the gain (must be 128, 64 or 32)'; st.style.color = 'var(--danger)'; }
+    _syncGainSelect();
+    return;
+  }
+
+  // STATUS <mode> <shear_mA> <vib_mA> <gain> — used to sync the UI on connect
+  if (line.startsWith('STATUS ')) {
+    const p = line.split(' ');
+    if (p.length >= 5) {
+      const g = parseInt(p[4]);
+      if (!isNaN(g)) { _hx711Gain = g; _syncGainSelect(); updateHx711GainUI(); updateCalStatus(); }
     }
     return;
   }
@@ -1737,6 +1829,7 @@ function buildCSVContent(meta = {}) {
   const dir   = document.getElementById('shear-dir').value;
   let csv  = `# Speed: ${speed} mm/min | Pitch: ${pitch} mm/rev | SPR: ${spr} | Direction: ${dir}\n`;
   csv     += `# Saved: ${new Date().toISOString()}\n`;
+  csv     += `# HX711 Gain: ${_hx711Gain}\n`;
   if (meta.sandType)                           csv += `# Sand Type: ${meta.sandType}\n`;
   if (meta.density)                            csv += `# Density/Condition: ${meta.density}\n`;
   if (meta.moisture    !== '')                 csv += `# Moisture Content: ${meta.moisture} %\n`;
@@ -3722,8 +3815,70 @@ function updateAxisFont() {
   overlayChart.update('none');
 }
 
+// ── HX711 amplifier gain ───────────────────────────────────────────────────
+// The PGA gain is set by the number of SCK pulses the firmware sends after the
+// 24 data bits, so it is a live setting, not a rewire. Lower gain widens the
+// input span and pushes back the 24-bit rail; it is the only thing standing
+// between a real peak and a flat-topped trace.
+const HX711_FS_COUNTS = 8388608;                        // 2^23 — the rail
+const HX711_GAIN_MV   = { 128: 20, 64: 40, 32: 80 };    // full-scale input, mV
+let _hx711Gain = 128;                                   // last value the firmware reported
+
+// Counts per Newton scale linearly with gain, so one calibration predicts the
+// ceiling at any gain. Returns null when nothing is calibrated.
+function hx711CeilingN(gain = _hx711Gain) {
+  if (!_guiCal || !_guiCal.slope) return null;
+  const calGain  = _guiCal.gain || 128;
+  const slopeNow = Math.abs(_guiCal.slope) * (gain / calGain);
+  return slopeNow ? HX711_FS_COUNTS / slopeNow : null;
+}
+
+function _syncGainSelect() {
+  const sel = document.getElementById('hx711-gain-sel');
+  if (sel) sel.value = String(_hx711Gain);
+}
+
+function updateHx711GainUI() {
+  const st = document.getElementById('hx711-gain-status');
+  if (st) {
+    st.textContent = `Device gain: ${_hx711Gain}` + (s.connected ? '' : ' (assumed — connect to confirm)');
+    st.style.color = 'var(--muted)';
+  }
+  const rangeEl = document.getElementById('hx711-gain-range');
+  if (rangeEl) {
+    const ceil = hx711CeilingN();
+    rangeEl.innerHTML = ceil
+      ? `Full scale at gain ${_hx711Gain}: <b>±${ceil.toFixed(0)} N</b> (±${HX711_GAIN_MV[_hx711Gain]} mV in, ±${HX711_FS_COUNTS.toLocaleString()} counts). `
+        + `Samples parked at exactly that value are clipped, not measured.`
+      : `Full scale at gain ${_hx711Gain}: ±${HX711_GAIN_MV[_hx711Gain]} mV in = ±${HX711_FS_COUNTS.toLocaleString()} counts. `
+        + `Activate a calibration to see the ceiling in Newtons.`;
+  }
+}
+
+async function applyHx711Gain() {
+  if (!s.connected) { alert('Not connected — connect to the ESP first.'); return; }
+  const gain = parseInt(document.getElementById('hx711-gain-sel').value);
+  if (![128, 64, 32].includes(gain)) return;
+
+  const ceil = hx711CeilingN(gain);
+  const msg = [
+    `Set the HX711 amplifier to gain ${gain} (±${HX711_GAIN_MV[gain]} mV, channel ${gain === 32 ? 'B' : 'A'})?`,
+    '',
+    ceil ? `Full scale becomes about ±${ceil.toFixed(0)} N.` : '',
+    'The cell is re-tared as part of the switch — take the load off first.',
+    'Counts per Newton scale with the gain, so a calibration taken at another gain stops applying. Recalibrate before recording data.',
+    gain === 32 ? 'Gain 32 reads channel B: the cell must be wired to the B inputs.' : '',
+  ].filter(Boolean).join('\n');
+  if (!confirm(msg)) { _syncGainSelect(); return; }
+
+  const st = document.getElementById('hx711-gain-status');
+  if (st) { st.textContent = 'Applying…'; st.style.color = 'var(--muted)'; }
+  await sendCmd(`GAIN ${gain}`);
+}
+
 // ── Load Cell Calibration ──────────────────────────────────────────────────
 let _calPoints  = [];   // [{massKg, forceN, raw}]
+let _calPointsGain = null;   // gain the current point set was captured at
 let calChart    = null;
 let _guiCal     = null; // { slope, intercept, name, r2 } — active GUI-side calibration
 
@@ -3755,6 +3910,15 @@ function captureCalPoint() {
   if (isNaN(massVal) || massVal < 0) { alert('Enter a valid mass/force value.'); return; }
   if (isNaN(rawVal))                 { alert('No live reading — connect to device first.'); return; }
 
+  // Counts per Newton scale with the PGA gain, so points captured either side
+  // of a gain change do not belong on the same line.
+  if (_calPoints.length && _calPointsGain !== null && _calPointsGain !== _hx711Gain) {
+    alert(`These points were captured at gain ${_calPointsGain}, but the amplifier is now at gain ${_hx711Gain}.\n\n`
+        + 'Switch the gain back, or clear the points and start the calibration again.');
+    return;
+  }
+  _calPointsGain = _hx711Gain;
+
   let forceN;
   if      (unit === 'kg') forceN = massVal * 9.81;
   else if (unit === 'g')  forceN = massVal * 0.00981;
@@ -3775,6 +3939,7 @@ function removeCalPoint(idx) {
 function clearCalPoints() {
   if (_calPoints.length && !confirm('Clear all calibration points?')) return;
   _calPoints = [];
+  _calPointsGain = null;
   renderCalTable();
   updateCalChart();
 }
@@ -3805,6 +3970,7 @@ function renderCalTable() {
   if (!_calPoints.length) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px">No points captured yet.</td></tr>';
     document.getElementById('cal-results-card').style.display = 'none';
+    updateApplyCalSource();
     return;
   }
 
@@ -3834,6 +4000,7 @@ function renderCalTable() {
     if (btnAct) btnAct.disabled = false;
   }
 
+  updateApplyCalSource();
 }
 
 function updateCalChart() {
@@ -3876,7 +4043,8 @@ function applyCalibration() {
   if (!reg) { alert('Need at least 2 calibration points.'); return; }
   if (reg.slope === 0) { alert('Slope is zero — check your data.'); return; }
   const name = document.getElementById('cal-name').value.trim() || 'unnamed';
-  _guiCal = { slope: reg.slope, intercept: reg.intercept, name, r2: reg.r2 };
+  _guiCal = { slope: reg.slope, intercept: reg.intercept, name, r2: reg.r2,
+              gain: _calPointsGain ?? _hx711Gain };
   updateCalStatus();
   alert(`GUI calibration active: "${name}"\nraw = ${reg.slope.toFixed(4)} × F(N) + ${reg.intercept.toFixed(2)}\nR² = ${reg.r2.toFixed(5)}`);
 }
@@ -3898,6 +4066,7 @@ function _buildCalCSV() {
   if (temp)  csv += `# Temperature: ${temp} °C\n`;
   if (date)  csv += `# Date: ${date}\n`;
   if (maxR)  csv += `# Max Range: ${maxR} N\n`;
+  csv += `# HX711 Gain: ${_calPointsGain ?? _hx711Gain}\n`;
   if (notes) csv += `# Notes: ${notes.replace(/\n/g, ' | ')}\n`;
   if (reg)   csv += `# Fit: raw = ${reg.slope.toFixed(6)} * F(N) + ${reg.intercept.toFixed(6)}  R2=${reg.r2.toFixed(6)}\n`;
   csv += 'Mass (kg),Force (N),Raw Reading\n';
@@ -3988,6 +4157,8 @@ async function loadSelectedCalFile() {
     if (meta['Date'])             document.getElementById('cal-date').value        = meta['Date'];
     if (meta['Max Range'])        document.getElementById('cal-max-range').value   = parseFloat(meta['Max Range']);
     if (meta['Notes'])            document.getElementById('cal-notes').value       = meta['Notes'].replace(/ \| /g, '\n');
+    const loadedGain = parseInt(meta['HX711 Gain']);
+    _calPointsGain = isNaN(loadedGain) ? null : loadedGain;
 
     // Parse data rows
     _calPoints = [];
@@ -4007,7 +4178,8 @@ async function loadSelectedCalFile() {
     renderCalTable();
     updateCalChart();
     const lbl = document.getElementById('cal-loaded-label');
-    lbl.textContent = `✓ Loaded: ${name.replace(/\.csv$/i,'')}`;
+    lbl.textContent = `✓ Loaded: ${name.replace(/\.csv$/i,'')}`
+      + (_calPointsGain ? `  (captured at gain ${_calPointsGain})` : '  (gain not recorded — assumed 128)');
     lbl.style.display = 'block';
     // Enable Activate button
     const btnAct = document.getElementById('btn-activate-cal');
@@ -4023,7 +4195,8 @@ function activateLoadedCal() {
   const calName = document.getElementById('cal-name').value.trim()
     || document.getElementById('cal-file-sel').value.replace(/\.csv$/i, '')
     || 'loaded cal';
-  _guiCal = { slope: reg.slope, intercept: reg.intercept, name: calName, r2: reg.r2 };
+  _guiCal = { slope: reg.slope, intercept: reg.intercept, name: calName, r2: reg.r2,
+              gain: _calPointsGain ?? _hx711Gain };
   updateCalStatus();
   alert(`Calibration "${calName}" activated for GUI.\nraw = ${reg.slope.toFixed(4)} × F(N) + ${reg.intercept.toFixed(2)}\nR² = ${reg.r2.toFixed(5)}`);
 }
@@ -4034,10 +4207,12 @@ function clearGuiCal() {
 }
 
 function updateCalStatus() {
+  const gainMismatch = _guiCal && _guiCal.gain && _guiCal.gain !== _hx711Gain;
   const text = _guiCal
     ? `✓ Active: ${_guiCal.name}  (R²\u202f=\u202f${_guiCal.r2.toFixed(4)})`
+      + (gainMismatch ? `  ⚠ captured at gain ${_guiCal.gain}, amplifier now at ${_hx711Gain} — recalibrate` : '')
     : 'No calibration active — raw counts passed through as-is';
-  const colour = _guiCal ? 'var(--success)' : 'var(--muted)';
+  const colour = gainMismatch ? 'var(--danger)' : _guiCal ? 'var(--success)' : 'var(--muted)';
 
   // Status line in cal tab
   const calSt = document.getElementById('cal-active-status');
@@ -4050,6 +4225,370 @@ function updateCalStatus() {
   // Clear button visibility
   const btnClear = document.getElementById('btn-clear-gui-cal');
   if (btnClear) btnClear.style.display = _guiCal ? 'inline-flex' : 'none';
+
+  updateHx711GainUI();     // the ceiling in N depends on the active calibration
+  updateApplyCalSource();
+}
+
+// ── Apply a calibration to already-saved test files ────────────────────────
+//
+// A test saved while no GUI calibration was active has tared raw HX711 counts
+// in its "Shear Force (N)" column — the firmware divides by CALFACTOR, which
+// defaults to 1.0. This converts that column after the fact with the same
+// expression the live path uses (processLine): F(N) = (raw − intercept)/slope.
+//
+// Sign: the recorded value is forceFlip × (raw − tare) and the fitted slope is
+// typically negative, so the naive result can land on the wrong side of zero.
+// That is not something to guess at — the preview shows before/after and the
+// "Invert sign" box decides it.
+//
+// The source file is only ever read. Output goes to a sibling file so the raw
+// counts stay recoverable if a better calibration turns up later.
+
+const APPLY_CAL_MARKER   = 'Calibration Applied';   // header key written into converted files
+const APPLY_RAW_MIN_PEAK = 20;                      // |peak| below this looks like it is already in N
+
+const _applyStats    = new Map();   // path → {n, first, last, peak, peakAbs, already, calName, error}
+const _applySelected = new Set();   // paths ticked for conversion
+let   _applyEntries  = [];          // file nodes offered for conversion
+
+// Fit to apply: the points currently loaded in this tab, else the active GUI cal.
+function _applyCalFit() {
+  const reg = calLinReg();
+  if (reg && reg.slope !== 0) {
+    const name = document.getElementById('cal-name').value.trim()
+      || document.getElementById('cal-file-sel').value.replace(/\.csv$/i, '')
+      || 'unnamed';
+    return { slope: reg.slope, intercept: reg.intercept, r2: reg.r2, name,
+             source: `${_calPoints.length} calibration points loaded in this tab` };
+  }
+  if (_guiCal && _guiCal.slope !== 0) {
+    return { slope: _guiCal.slope, intercept: _guiCal.intercept, r2: _guiCal.r2,
+             name: _guiCal.name, source: 'active GUI calibration' };
+  }
+  return null;
+}
+
+function updateApplyCalSource() {
+  const el = document.getElementById('apply-cal-source');
+  if (!el) return;
+  const fit = _applyCalFit();
+  if (!fit) {
+    el.innerHTML = 'No calibration loaded — load a saved calibration above, or capture points below.';
+    el.style.color = 'var(--muted)';
+  } else {
+    el.innerHTML = `Using <b>${escHtml(fit.name)}</b> — `
+      + `<span style="font-family:monospace">F(N) = (raw − ${fit.intercept.toFixed(2)}) / ${fit.slope.toFixed(4)}</span>`
+      + `&nbsp; R² = ${fit.r2.toFixed(5)} &nbsp;<span style="color:var(--muted)">(${escHtml(fit.source)})</span>`;
+    el.style.color = 'var(--text)';
+  }
+  renderApplyPreview();
+}
+
+function _applyConvert(raw, fit, invert) {
+  return ((raw - fit.intercept) / fit.slope) * (invert ? -1 : 1);
+}
+
+// Read a saved test once to classify it and to drive the preview
+async function _readApplyStats(entry) {
+  try {
+    const text = await (await entry.handle.getFile()).text();
+    const meta = parseCSVMeta(text);
+    const data = parseCSVData(text);
+    let peak = NaN, peakAbs = -1;
+    for (const [, y] of data) {
+      const a = Math.abs(y);
+      if (a > peakAbs) { peakAbs = a; peak = y; }
+    }
+    return {
+      n:       data.length,
+      first:   data.length ? data[0][1] : NaN,
+      last:    data.length ? data[data.length - 1][1] : NaN,
+      peak,
+      peakAbs: peakAbs < 0 ? NaN : peakAbs,
+      already: !!meta[APPLY_CAL_MARKER],
+      calName: meta[APPLY_CAL_MARKER] || '',
+    };
+  } catch (e) {
+    return { n: 0, first: NaN, last: NaN, peak: NaN, peakAbs: NaN, already: false, calName: '', error: e.message };
+  }
+}
+
+async function refreshApplyFileList() {
+  const list = document.getElementById('apply-cal-file-list');
+  if (!list) return;
+  if (!dirHandle) {
+    list.innerHTML = '<span class="muted" style="font-size:0.82rem">No save folder selected — press 📁 Save Folder in the header first.</span>';
+    return;
+  }
+  list.innerHTML = '<span class="muted" style="font-size:0.82rem">Scanning…</span>';
+  try {
+    await refreshFileList();   // pick up anything saved since the last scan
+    // Calibration files live under calibrations/ and are not test runs
+    _applyEntries = _allFileEntries.filter(e =>
+      !e.path.split('/').slice(0, -1).some(seg => /^calibrations?$/i.test(seg)));
+
+    // Read only what is not cached yet; converted outputs invalidate their own entry
+    let done = 0;
+    for (const e of _applyEntries) {
+      if (!_applyStats.has(e.path)) _applyStats.set(e.path, await _readApplyStats(e));
+      if (++done % 10 === 0)
+        list.innerHTML = `<span class="muted" style="font-size:0.82rem">Reading ${done} / ${_applyEntries.length}…</span>`;
+    }
+    // Drop ticks for files that no longer exist
+    const live = new Set(_applyEntries.map(e => e.path));
+    [..._applySelected].forEach(p => { if (!live.has(p)) _applySelected.delete(p); });
+  } catch (e) {
+    list.innerHTML = `<span class="muted" style="font-size:0.82rem">Scan failed: ${escHtml(e.message)}</span>`;
+    return;
+  }
+  renderApplyFileList();
+}
+
+function renderApplyFileList() {
+  const list = document.getElementById('apply-cal-file-list');
+  if (!list) return;
+  if (!_applyEntries.length) {
+    list.innerHTML = '<span class="muted" style="font-size:0.82rem">No CSV test files found in the save folder.</span>';
+    updateApplyCount();
+    return;
+  }
+
+  // Group by containing folder so campaigns stay readable
+  const groups = new Map();
+  for (const e of _applyEntries) {
+    const folder = e.path.includes('/')
+      ? e.path.split('/').slice(0, -1).join('/')
+      : `${dirHandle.name} (root)`;
+    if (!groups.has(folder)) groups.set(folder, []);
+    groups.get(folder).push(e);
+  }
+
+  const fmt = v => isNaN(v) ? '—' : (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(3));
+  let html = '';
+  for (const [folder, entries] of groups) {
+    html += `<div class="day-header">📁 ${escHtml(folder)}</div>`;
+    for (const e of entries) {
+      const st = _applyStats.get(e.path) || {};
+      let badge;
+      if (st.error)            badge = `<span style="font-size:0.7rem;font-weight:700;color:var(--danger)" title="${escHtml(st.error)}">unreadable</span>`;
+      else if (!st.n)          badge = `<span style="font-size:0.7rem;font-weight:700;color:var(--danger)">no data rows</span>`;
+      else if (st.already)     badge = `<span style="font-size:0.7rem;font-weight:700;color:var(--success)" title="${escHtml(st.calName)}">calibrated</span>`;
+      else if (st.peakAbs >= APPLY_RAW_MIN_PEAK)
+                               badge = `<span style="font-size:0.7rem;font-weight:700;color:var(--primary)">raw counts</span>`;
+      else                     badge = `<span style="font-size:0.7rem;font-weight:700;color:var(--muted)" title="Peak is small enough that this column may already be in Newtons">looks like N</span>`;
+      html += `<div class="file-row">
+        <input type="checkbox" data-apply-path="${escHtml(e.path)}" ${_applySelected.has(e.path) ? 'checked' : ''}/>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.82rem">${escHtml(e.name)}</span>
+        ${badge}
+        <span class="muted" style="font-size:0.75rem;width:120px;text-align:right">peak ${fmt(st.peak)}</span>
+        <span class="muted" style="font-size:0.75rem;width:58px;text-align:right">${st.n ?? 0} pts</span>
+      </div>`;
+    }
+  }
+  list.innerHTML = html;
+  updateApplyCount();
+}
+
+document.getElementById('apply-cal-file-list').addEventListener('change', e => {
+  const cb = e.target.closest('input[data-apply-path]');
+  if (!cb) return;
+  if (cb.checked) _applySelected.add(cb.dataset.applyPath);
+  else            _applySelected.delete(cb.dataset.applyPath);
+  updateApplyCount();
+  renderApplyPreview();
+});
+
+function toggleApplySelectAll(masterCb) {
+  _applySelected.clear();
+  if (masterCb.checked) _applyEntries.forEach(e => _applySelected.add(e.path));
+  document.querySelectorAll('#apply-cal-file-list input[data-apply-path]')
+    .forEach(cb => { cb.checked = masterCb.checked; });
+  updateApplyCount();
+  renderApplyPreview();
+}
+
+function updateApplyCount() {
+  const el = document.getElementById('apply-cal-count');
+  if (el) el.textContent = `${_applySelected.size} selected`;
+}
+
+// Files that will actually be written, honouring the "skip already calibrated" box
+function _applyTargets() {
+  const skipDone = document.getElementById('apply-cal-skip-done')?.checked;
+  return _applyEntries.filter(e => {
+    if (!_applySelected.has(e.path)) return false;
+    const st = _applyStats.get(e.path) || {};
+    if (st.error || !st.n) return false;
+    if (skipDone && st.already) return false;
+    return true;
+  });
+}
+
+function renderApplyPreview() {
+  const box = document.getElementById('apply-cal-preview');
+  const btn = document.getElementById('btn-apply-cal-run');
+  if (!box) return;
+
+  const fit     = _applyCalFit();
+  const invert  = document.getElementById('apply-cal-invert')?.checked;
+  const targets = _applyTargets();
+  const skipped = _applySelected.size - targets.length;
+
+  if (!fit || !targets.length) {
+    box.innerHTML = '';
+    if (btn) btn.disabled = true;
+    if (!fit && _applySelected.size)
+      box.innerHTML = '<span class="muted" style="font-size:0.82rem">Load a calibration before converting.</span>';
+    else if (skipped > 0)
+      box.innerHTML = `<span class="muted" style="font-size:0.82rem">${skipped} selected file${skipped !== 1 ? 's are' : ' is'} already calibrated or unreadable — nothing left to convert.</span>`;
+    return;
+  }
+  if (btn) btn.disabled = false;
+
+  const f = v => isNaN(v) ? '—' : (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(3));
+  const c = v => isNaN(v) ? '—' : _applyConvert(v, fit, invert).toFixed(5);
+  const rows = targets.slice(0, 6).map(e => {
+    const st = _applyStats.get(e.path) || {};
+    return `<tr>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(e.name)}</td>
+      <td>${f(st.first)} → <b>${c(st.first)}</b></td>
+      <td>${f(st.peak)} → <b>${c(st.peak)}</b></td>
+      <td>${f(st.last)} → <b>${c(st.last)}</b></td>
+    </tr>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div style="font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
+      Preview — raw → N ${invert ? '(sign inverted)' : ''}
+    </div>
+    <table class="stats-table">
+      <thead><tr><th>File</th><th>First</th><th>Peak |max|</th><th>Last</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="muted" style="font-size:0.78rem;margin-top:6px">
+      ${targets.length} file${targets.length !== 1 ? 's' : ''} will be written${targets.length > 6 ? ' (first 6 previewed)' : ''}${skipped > 0 ? `, ${skipped} skipped` : ''}.
+      Check that the peak lands on the sign you expect before converting.
+    </p>`;
+}
+
+// Rewrites one CSV's force column. Comment header is preserved verbatim and the
+// provenance lines are appended to it; the column header row is left as-is.
+function buildCalibratedCSV(text, fit, invert, srcName) {
+  const lines = text.split('\n');
+  const head = [], body = [];
+  let inHeader = true, colHeaderSeen = false;
+
+  for (const raw of lines) {
+    const line = raw.replace(/\r$/, '');
+    if (inHeader && line.trim().startsWith('#')) { head.push(line); continue; }
+    inHeader = false;
+    if (!colHeaderSeen && line.trim() !== '') { colHeaderSeen = true; body.push(line); continue; }
+    if (line.trim() === '') { body.push(line); continue; }
+    const parts = line.split(',');
+    const x = parseFloat(parts[0]);
+    const y = parseFloat(parts[1]);
+    if (parts.length < 2 || isNaN(x) || isNaN(y)) { body.push(line); continue; }   // pass through anything unparsable
+    body.push(`${parts[0].trim()},${_applyConvert(y, fit, invert).toFixed(6)}`);
+  }
+
+  head.push(`# ${APPLY_CAL_MARKER}: ${fit.name}`);
+  head.push(`# Calibration Fit: raw = ${fit.slope.toFixed(6)} * F(N) + ${fit.intercept.toFixed(6)}  R2=${fit.r2.toFixed(6)}`);
+  head.push(`# Calibration Sign: ${invert ? 'inverted' : 'as fitted'}`);
+  head.push(`# Calibrated From: ${srcName}`);
+  head.push(`# Calibrated At: ${new Date().toISOString()}`);
+
+  return [...head, ...body].join('\n');
+}
+
+async function applyCalToFiles() {
+  const fit = _applyCalFit();
+  if (!fit) { alert('Load a calibration first.'); return; }
+
+  const invert  = document.getElementById('apply-cal-invert').checked;
+  const suffix  = (document.getElementById('apply-cal-suffix').value.trim() || '_cal').replace(/[/\\:*?"<>|]/g, '_');
+  const targets = _applyTargets();
+  if (!targets.length) { alert('No convertible files selected.'); return; }
+
+  const ok = await _ensureDirPermission();
+  if (!ok) { alert('Permission denied — click Save Folder to reauthorize.'); return; }
+
+  // Output names and clashes, resolved before anything is written. Existence is
+  // probed on the filesystem rather than the cached tree — the tree can be stale
+  // and a false negative here would silently overwrite a previous conversion.
+  const jobs = [];
+  for (const e of targets) {
+    const outName = e.name.replace(/\.csv$/i, '') + suffix + '.csv';
+    if (outName === e.name) {                       // suffix collapsed to nothing
+      alert('The suffix would overwrite the original file. Choose a non-empty suffix.');
+      return;
+    }
+    const dirPath = e.path.includes('/') ? e.path.split('/').slice(0, -1).join('/') : '';
+    const outPath = dirPath ? `${dirPath}/${outName}` : outName;
+    let exists = false;
+    try {
+      const dir = await getFreshDirHandle(dirPath);
+      await dir.getFileHandle(outName);
+      exists = true;
+    } catch (_) { /* NotFoundError — nothing there, good */ }
+    jobs.push({ entry: e, outName, dirPath, outPath, exists });
+  }
+  const clashes = jobs.filter(j => j.exists);
+  if (clashes.length) {
+    const names = clashes.slice(0, 8).map(j => '  ' + j.outName).join('\n');
+    if (!confirm(`${clashes.length} output file${clashes.length !== 1 ? 's' : ''} already exist${clashes.length === 1 ? 's' : ''}:\n\n${names}${clashes.length > 8 ? '\n  …' : ''}\n\nOverwrite them? Cancel to skip those files.`)) {
+      jobs.forEach((j, i) => { if (j.exists) jobs[i].skip = true; });
+    }
+  }
+  const toWrite = jobs.filter(j => !j.skip);
+  if (!toWrite.length) { alert('Nothing left to write.'); return; }
+
+  const st0 = _applyStats.get(toWrite[0].entry.path) || {};
+  const sample = isNaN(st0.peak) ? '' :
+    `\nExample (${toWrite[0].entry.name}): peak ${st0.peak.toFixed(3)}  →  ${_applyConvert(st0.peak, fit, invert).toFixed(5)} N`;
+  if (!confirm(
+      `Convert ${toWrite.length} file${toWrite.length !== 1 ? 's' : ''} using "${fit.name}"?\n\n`
+    + `F(N) = (raw − ${fit.intercept.toFixed(2)}) / ${fit.slope.toFixed(4)}${invert ? '  ×  −1 (sign inverted)' : ''}\n`
+    + `Output: <original>${suffix}.csv, written next to each source file.\n`
+    + `Originals are not modified.${sample}`)) return;
+
+  const status = document.getElementById('apply-cal-status');
+  const failures = [];
+  let written = 0;
+
+  for (const [i, job] of toWrite.entries()) {
+    if (status) { status.textContent = `Converting ${i + 1} / ${toWrite.length}…`; status.style.color = 'var(--muted)'; }
+    try {
+      // Re-acquire handles now — cached ones go stale when the tree is rebuilt
+      const dir  = await getFreshDirHandle(job.dirPath);
+      const text = await (await (await dir.getFileHandle(job.entry.name)).getFile()).text();
+      const out  = buildCalibratedCSV(text, fit, invert, job.entry.name);
+      const fh   = await dir.getFileHandle(job.outName, { create: true });
+      const wr   = await fh.createWritable();
+      await wr.write(out);
+      await wr.close();
+      _metaCache.delete(job.outPath);
+      _dataCache.delete(job.outPath);
+      _applyStats.delete(job.outPath);
+      written++;
+    } catch (e) {
+      failures.push(`${job.entry.name}: ${e.message}`);
+    }
+  }
+
+  _applySelected.clear();
+  const selAll = document.getElementById('apply-cal-select-all');
+  if (selAll) selAll.checked = false;
+  await refreshApplyFileList();   // rescans the folder tree as well
+  schedulePlot();
+
+  if (status) {
+    status.textContent = failures.length
+      ? `✓ ${written} written, ${failures.length} failed`
+      : `✓ ${written} file${written !== 1 ? 's' : ''} written`;
+    status.style.color = failures.length ? 'var(--danger)' : 'var(--success)';
+  }
+  if (failures.length) alert(`Some files could not be converted:\n\n${failures.slice(0, 10).join('\n')}`);
 }
 
 // ── Initialise on load ─────────────────────────────────────────────────────
@@ -4058,6 +4597,8 @@ updateSmoothUI();
 initForceChart();
 initFailureChart();
 initCalChart();
+updateHx711GainUI();
+updateApplyCalSource();
 </script>
 </body>
 </html>

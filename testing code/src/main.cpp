@@ -332,6 +332,17 @@ void IRAM_ATTR onCalClockFall() {
 static float hx711_offset     = 0.0f;  // tare offset (raw counts)
 static float hx711_cal_factor = 1.0f;  // raw counts per Newton
 
+// PGA select. The gain applies to the NEXT conversion and is chosen purely by
+// the number of SCK pulses sent after the 24 data bits:
+//   1 pulse  -> channel A, gain 128  (+/-20 mV full scale)
+//   2 pulses -> channel B, gain 32   (+/-80 mV, separate input pair)
+//   3 pulses -> channel A, gain 64   (+/-40 mV)
+// Lower gain buys headroom before the 24-bit rail at the cost of one bit of
+// resolution, which sits far below the noise floor here. The chip powers up in
+// channel A / gain 128, so that is the default this firmware keeps.
+static uint8_t hx711_pulses = 1;
+static uint8_t hx711_gain   = 128;
+
 bool hx711_ready() {
   return digitalRead(HX711_DOUT) == LOW;
 }
@@ -347,11 +358,13 @@ int32_t hx711_read_raw() {
     digitalWrite(HX711_SCK, LOW);
     delayMicroseconds(1);
   }
-  // One extra pulse → gain 128, channel A for next conversion
-  digitalWrite(HX711_SCK, HIGH);
-  delayMicroseconds(1);
-  digitalWrite(HX711_SCK, LOW);
-  delayMicroseconds(1);
+  // Trailing pulses select channel and gain for the NEXT conversion
+  for (uint8_t i = 0; i < hx711_pulses; i++) {
+    digitalWrite(HX711_SCK, HIGH);
+    delayMicroseconds(1);
+    digitalWrite(HX711_SCK, LOW);
+    delayMicroseconds(1);
+  }
   interrupts();
 
   // Sign-extend 24-bit → 32-bit
@@ -374,6 +387,35 @@ void hx711_tare(int samples = 8) {
   if (got > 0) hx711_offset = (float)sum / got;
 }
 
+bool hx711_wait_ready(uint32_t timeout_ms = 500) {
+  uint32_t deadline = millis() + timeout_ms;
+  while (millis() < deadline) {
+    if (hx711_ready()) return true;
+    delay(1);
+  }
+  return false;
+}
+
+// Switch the PGA. Returns false for an unsupported gain, in which case nothing
+// changes. The conversion already in flight was configured by the previous
+// read's trailing pulses, so the first sample after the switch still arrives at
+// the OLD gain -- it is read and discarded. The re-tare is mandatory: the offset
+// is held in raw counts, and those counts have just been rescaled.
+bool hx711_set_gain(uint8_t gain) {
+  uint8_t pulses;
+  if      (gain == 128) pulses = 1;
+  else if (gain == 64)  pulses = 3;
+  else if (gain == 32)  pulses = 2;
+  else return false;
+
+  hx711_pulses = pulses;
+  hx711_gain   = gain;
+
+  if (hx711_wait_ready()) hx711_read_raw();   // stale sample at the old gain
+  hx711_tare();
+  return true;
+}
+
 // Returns force in Newtons
 float hx711_get_newtons() {
   int32_t raw = hx711_read_raw();
@@ -391,6 +433,7 @@ float hx711_get_newtons() {
 //   STOP              stop motor (also stops vibration, de-energises driver)
 //   TARE              tare load cell
 //   CALFACTOR <f>     set calibration factor (raw counts/N)
+//   GAIN <128|64|32>  set HX711 PGA gain (re-tares; 32 uses channel B)
 //   VIB <hz> <amp>    start vibration: amp = microsteps peak-to-peak
 //   VIB 0             stop vibration
 //   VIBCUR <mA>       run current for the vibration-table motor
@@ -402,7 +445,9 @@ float hx711_get_newtons() {
 //   FORCE <value> N       load-cell reading in Newtons
 //   OK <CMD>              command acknowledged
 //   OK VIB <hz> <amp> <stepHz>   vibration started with ACTUAL params
-//   STATUS <mode> <shear_mA> <vib_mA>
+//   STATUS <mode> <shear_mA> <vib_mA> <hx711_gain>
+//   OK GAIN <gain>        PGA re-ranged and re-tared
+//   ERR GAIN              rejected: gain must be 128, 64 or 32
 //   ERR                   unrecognised command
 //   ERR VIB_ACTIVE        rejected: stop vibration before driving the shear axis
 // =====================================================================
@@ -503,9 +548,9 @@ void handleLine(String line) {
   }
 
   if (line == "STATUS") {
-    Serial.printf("STATUS %s %u %u\n",
+    Serial.printf("STATUS %s %u %u %u\n",
                   vibActive ? "VIB" : (running ? "SHEAR" : "IDLE"),
-                  shear_mA, vib_mA);
+                  shear_mA, vib_mA, hx711_gain);
     return;
   }
 
@@ -545,6 +590,19 @@ void handleLine(String line) {
   if (line == "TARE") {
     hx711_tare();
     Serial.println("OK TARE");
+    flash_led();
+    return;
+  }
+
+  // GAIN 128|64|32 -- re-ranges the amplifier and re-tares. Any calibration
+  // taken at another gain stops applying: counts per Newton scale with it.
+  if (line.startsWith("GAIN")) {
+    int v = line.substring(4).toInt();
+    if (hx711_set_gain((uint8_t)v)) {
+      Serial.printf("OK GAIN %u\n", hx711_gain);
+    } else {
+      Serial.println("ERR GAIN");
+    }
     flash_led();
     return;
   }
@@ -604,6 +662,7 @@ void setup() {
   Serial.println("Driver: TMC5160 Pro  Microsteps: 16x+INTPOL(256)  SPR: 3200");
   Serial.println("Pins: STEP=16 DIR=17 EN=4 CS=22 SCK=18 MISO=19 MOSI=23");
   Serial.println("Pins: CAL_CLK=27 CAL_DATA=26 HX711_DOUT=32 HX711_SCK=33");
+  Serial.printf("HX711: channel %c, gain %u\n", hx711_gain == 32 ? 'B' : 'A', hx711_gain);
 }
 
 // =====================================================================
