@@ -877,6 +877,46 @@
           </div>
         </div>
 
+        <!-- ── Stepper noise comb ────────────────────────────── -->
+        <div class="card">
+          <div class="sidebar-section-title">Stepper Ripple (comb notch)</div>
+          <div class="sidebar-row">
+            <input type="checkbox" id="comb-chk" onchange="schedulePlot()"/>
+            <label for="comb-chk">Remove stepper ripple</label>
+          </div>
+          <div class="sidebar-row">
+            <label style="width:70px">Period:</label>
+            <select id="comb-f0-mode" style="flex:1;min-width:0" onchange="_combRefineNote='';updateCombUI();schedulePlot()">
+              <option value="auto">Auto — from pitch</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+          <div class="sidebar-row" id="comb-manual-row" style="display:none">
+            <label style="width:70px">f₀:</label>
+            <input type="number" id="comb-f0" value="6.25" min="0.05" max="300" step="0.001" style="width:74px"
+                   onchange="updateCombUI();schedulePlot()"/>
+            <span class="muted" style="font-size:0.78rem">cycles/mm</span>
+          </div>
+          <div class="sidebar-row">
+            <label style="width:70px">Harmonics:</label>
+            <input type="number" id="comb-harmonics" value="6" min="1" max="12" style="width:48px" onchange="schedulePlot()"
+                   title="How many multiples of the fundamental to notch out"/>
+            <label style="margin-left:8px">Window:</label>
+            <input type="number" id="comb-cycles" value="6" min="2" max="40" style="width:48px" onchange="schedulePlot()"
+                   title="Envelope averaging length in fundamental cycles — larger = narrower notch, slower to follow amplitude changes"/>
+            <span class="muted" style="font-size:0.78rem">cyc</span>
+          </div>
+          <div class="sidebar-row">
+            <input type="checkbox" id="comb-show-removed" onchange="schedulePlot()"/>
+            <label for="comb-show-removed">Overlay what was removed</label>
+          </div>
+          <div class="sidebar-row">
+            <button class="btn-secondary" style="font-size:0.78rem;padding:4px 10px" onclick="refineCombF0()"
+                    title="Search ±6% around the predicted fundamental for the strongest periodic component in the first selected trace">Refine from trace</button>
+          </div>
+          <div id="comb-status" class="muted" style="font-size:0.76rem;line-height:1.5;margin-top:4px"></div>
+        </div>
+
         <!-- ── Smoothing ─────────────────────────────────────── -->
         <div class="card">
           <div class="sidebar-section-title">Smoothing</div>
@@ -1326,6 +1366,25 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════ -->
+<!-- Calibration check before a test                                -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="nocal-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:470px">
+    <div class="modal-title" id="nocal-title">No load cell calibration active</div>
+    <p class="modal-subtitle" id="nocal-body" style="line-height:1.6"></p>
+    <div style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="nocal-dontask"/>
+      <label for="nocal-dontask" style="font-size:0.82rem;font-weight:500">Don't ask again this session</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="resolveNoCal('cancel')">Cancel</button>
+      <button class="btn-danger"    onclick="resolveNoCal('proceed')" id="nocal-proceed-btn">Record anyway</button>
+      <button class="btn-primary"   onclick="resolveNoCal('choose')">Choose calibration ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
 <!-- JavaScript                                                     -->
 <!-- ══════════════════════════════════════════════════════════════ -->
 <script>
@@ -1749,6 +1808,52 @@ function toggleForceFlip() {
   if (ind) ind.textContent = s.forceFlip === -1 ? '(inverted)' : '';
 }
 
+// ── Calibration check before starting a test ───────────────────────────────
+// A test recorded with nothing active stores raw HX711 counts in a column
+// labelled Newtons, and the file does not record which calibration it is
+// waiting for -- that ambiguity is what the Apply Calibration tool exists to
+// undo. Worse is an active calibration captured at a different PGA gain: the
+// numbers look like Newtons and are simply wrong.
+let _noCalResolve  = null;
+let _skipCalPrompt = false;   // set by "don't ask again", session-scoped
+
+function calPromptKind() {
+  if (!_guiCal) return 'none';
+  if (_guiCal.gain && _hx711Gain && _guiCal.gain !== _hx711Gain) return 'gain';
+  return null;
+}
+
+function showNoCalModal(kind) {
+  const title = document.getElementById('nocal-title');
+  const body  = document.getElementById('nocal-body');
+  const proceedBtn = document.getElementById('nocal-proceed-btn');
+  if (kind === 'gain') {
+    const factor = _hx711Gain / _guiCal.gain;
+    title.textContent = 'Calibration does not match the amplifier';
+    body.innerHTML = 'The active calibration <b>' + escHtml(_guiCal.name) + '</b> was captured at gain '
+      + _guiCal.gain + ', but the HX711 is now running at gain ' + _hx711Gain + '. '
+      + 'Counts per Newton scale with the gain, so forces recorded now would be wrong by about '
+      + factor.toFixed(2) + '\u00d7. Recalibrate at the current gain, or switch the gain back.';
+    proceedBtn.textContent = 'Record anyway';
+  } else {
+    title.textContent = 'No load cell calibration active';
+    body.innerHTML = 'Nothing is calibrated, so the Shear Force column will hold <b>raw HX711 counts</b>, '
+      + 'not Newtons. You can convert the file afterwards from the Load Cell Cal tab, but the saved file '
+      + 'will not record which calibration it needs.';
+    proceedBtn.textContent = 'Record raw counts';
+  }
+  document.getElementById('nocal-dontask').checked = false;
+  document.getElementById('nocal-modal').style.display = 'flex';
+  return new Promise(res => { _noCalResolve = res; });
+}
+
+function resolveNoCal(action) {
+  if (document.getElementById('nocal-dontask').checked) _skipCalPrompt = true;
+  document.getElementById('nocal-modal').style.display = 'none';
+  if (_noCalResolve) _noCalResolve(action);
+  _noCalResolve = null;
+}
+
 // ── Shear test ─────────────────────────────────────────────────────────────
 async function startTest() {
   // The vibration table is a different motor on the same driver — never drive
@@ -1757,6 +1862,22 @@ async function startTest() {
     alert('Vibration is running. Stop it and confirm the shear motor is connected before starting a test.');
     return;
   }
+
+  // Nothing has moved yet, so this is the last harmless moment to catch a
+  // missing or mismatched calibration.
+  const calKind = _skipCalPrompt ? null : calPromptKind();
+  if (calKind) {
+    const action = await showNoCalModal(calKind);
+    if (action === 'cancel') return;
+    if (action === 'choose') {
+      switchTab('cal', document.querySelectorAll('.tab-btn')[4]);
+      initCalChart();
+      refreshCalFileList();
+      updateApplyCalSource();
+      return;                       // start again once a calibration is active
+    }
+  }
+
   const speed = parseFloat(document.getElementById('shear-speed').value) || 10;   // mm/min
   const pitch = parseFloat(document.getElementById('shear-pitch').value) || 8;    // mm/rev
   const spr   = parseFloat(document.getElementById('shear-spr').value)   || 3200;
@@ -2409,6 +2530,147 @@ function applySmoothingToY(yArr, xArr) {
   if (method === 'ma') return movingAverage(yArr, w);
   const deg = parseInt(document.getElementById('smooth-poly')?.value) || 3;
   return savitzkyGolay(yArr, w, deg);
+}
+
+// ── Stepper ripple: comb notch in the displacement domain ─────────────────
+//
+// The stepper puts a ripple into the load cell locked to the motor's electrical
+// cycle -- one cycle per 4 full steps, i.e. per pitch/50 mm of travel, which is
+// 6.25 cycles/mm at an 8 mm pitch. On the noise runs of 01-09 it measures
+// 6.244-6.254 cycles/mm at 1, 1.5 and 3 mm/min: fixed in DISPLACEMENT, not in
+// time, so the notch is specified in cycles/mm and never needs retuning when the
+// shear speed changes. Odd harmonics (3rd, 5th, 7th) carry real amplitude, hence
+// a comb rather than a single notch.
+//
+// Removal is by synchronous demodulation: multiply by cos/sin at h*f0, average
+// each product over a whole number of cycles to recover the slowly varying
+// amplitude and phase, rebuild that component, subtract it. Only a narrow band
+// around each harmonic is touched, so the shear curve survives -- unlike a
+// one-period boxcar, which nulls the same frequencies but flattens the peak.
+const COMB_FULL_STEPS_PER_REV = 200;   // 1.8 deg motor; 4 full steps = 1 electrical cycle
+
+// Centred boxcar, reflect-padded so the ends keep their local mean instead of
+// sagging toward a half-window average.
+function _maReflect(v, L) {
+  const n = v.length;
+  if (n < 3) return Float64Array.from(v);
+  let half = Math.max(1, Math.floor(L / 2));   // window = 2*half+1, always odd
+  half = Math.min(half, n - 1);
+  const w = 2 * half + 1;
+  const padded = new Float64Array(n + 2 * half);
+  for (let i = 0; i < half; i++) padded[i] = v[Math.min(n - 1, half - i)];
+  for (let i = 0; i < n; i++)    padded[half + i] = v[i];
+  for (let i = 0; i < half; i++) padded[half + n + i] = v[Math.max(0, n - 2 - i)];
+  const c = new Float64Array(padded.length + 1);
+  for (let i = 0; i < padded.length; i++) c[i + 1] = c[i] + padded[i];
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) out[i] = (c[i + w] - c[i]) / w;
+  return out;
+}
+
+// Returns { clean, removed }. `removed` comes out zero-mean by construction: the
+// local trend is stripped before demodulation, so the shear curve cannot leak
+// into the envelope and return as a DC offset.
+function combNotch(xs, ys, f0, harmonics, cycles) {
+  const n = ys.length;
+  const removed = new Float64Array(n);
+  if (n < 32 || !(f0 > 0)) return { clean: Float64Array.from(ys), removed };
+
+  // x is written to 4 dp, so per-sample differences are quantised; the average
+  // spacing across the whole record is the only reliable estimate.
+  const dx = (xs[n - 1] - xs[0]) / (n - 1);
+  if (!(dx > 0)) return { clean: Float64Array.from(ys), removed };
+
+  const per = 1 / (f0 * dx);                        // samples per fundamental cycle
+  let L = Math.round(Math.max(2, cycles) * per);    // envelope window ~ whole cycles
+  if (!isFinite(L) || L < 4) return { clean: Float64Array.from(ys), removed };
+  L = Math.min(L, n - 1);
+
+  // Above Nyquist a harmonic folds back and would be subtracted at the wrong
+  // frequency, so cap the comb rather than trust the setting. 6 harmonics are
+  // safe to 3 mm/min; at 10 mm/min only 4 fit.
+  const hMax = Math.max(1, Math.floor(1 / (2 * dx * f0)));
+  harmonics = Math.min(harmonics, hMax);
+
+  const work = Float64Array.from(ys);
+  const cw = new Float64Array(n), sw = new Float64Array(n);
+  for (let h = 1; h <= harmonics; h++) {
+    const w = 2 * Math.PI * f0 * h;
+    for (let i = 0; i < n; i++) { cw[i] = Math.cos(w * xs[i]); sw[i] = Math.sin(w * xs[i]); }
+    const base = _maReflect(work, L);
+    const pc = new Float64Array(n), ps = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const r = work[i] - base[i];                  // demodulate the fluctuation only
+      pc[i] = r * cw[i]; ps[i] = r * sw[i];
+    }
+    const I = _maReflect(pc, L), Q = _maReflect(ps, L);
+    for (let i = 0; i < n; i++) {
+      const comp = 2 * (I[i] * cw[i] + Q[i] * sw[i]);
+      removed[i] += comp;
+      work[i]   -= comp;
+    }
+  }
+  return { clean: work, removed };
+}
+
+// Fundamental in cycles/mm: 50 electrical cycles per leadscrew revolution,
+// independent of microstepping. Pitch is read from each file's own header where
+// present, so an archive with mixed pitches still lines up.
+function combFundamental(meta) {
+  if (document.getElementById('comb-f0-mode')?.value === 'manual') {
+    const manual = parseFloat(document.getElementById('comb-f0')?.value);
+    if (manual > 0) return manual;
+  }
+  let pitch = NaN;
+  const hdr = meta && meta['Speed'];
+  if (hdr) { const m = hdr.match(/Pitch:\s*([0-9.]+)/); if (m) pitch = parseFloat(m[1]); }
+  if (!(pitch > 0)) pitch = parseFloat(document.getElementById('shear-pitch')?.value) || 8;
+  return (COMB_FULL_STEPS_PER_REV / 4) / pitch;
+}
+
+let _combRefineNote = '';   // sticky note from the last "Refine from trace"
+
+function updateCombUI() {
+  const row = document.getElementById('comb-manual-row');
+  if (row) row.style.display = document.getElementById('comb-f0-mode')?.value === 'manual' ? '' : 'none';
+}
+
+// Narrow search around the predicted fundamental, on the first selected trace.
+function refineCombF0() {
+  const idx   = [..._selectedIndices][0];
+  const entry = _allFileEntries[idx];
+  const data  = entry && _dataCache.get(entry.path);
+  if (!data || data.length < 64) { alert('Select a trace first, and let it plot once.'); return; }
+
+  const f0 = combFundamental(entry.meta);
+  const xs = data.map(d => d[0]), ys = data.map(d => d[1]);
+  const n  = xs.length;
+  const mx = xs.reduce((a, v) => a + v, 0) / n, my = ys.reduce((a, v) => a + v, 0) / n;
+  let sxy = 0, sxx = 0;
+  for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; }
+  const slope = sxx ? sxy / sxx : 0;
+  const yd = ys.map((v, i) => v - my - slope * (xs[i] - mx));   // linear detrend
+
+  let best = f0, bestMag = -1;
+  for (let k = 0; k <= 300; k++) {
+    const f = f0 * (0.94 + 0.12 * k / 300);
+    let re = 0, im = 0;
+    for (let i = 0; i < n; i++) {
+      const a = 2 * Math.PI * f * xs[i];
+      re += yd[i] * Math.cos(a); im += yd[i] * Math.sin(a);
+    }
+    const mag = re * re + im * im;
+    if (mag > bestMag) { bestMag = mag; best = f; }
+  }
+  document.getElementById('comb-f0-mode').value = 'manual';
+  document.getElementById('comb-f0').value = best.toFixed(3);
+  updateCombUI();
+  schedulePlot();
+  _combRefineNote = 'Refined on <b>' + escHtml(entry.name) + '</b>: '
+                  + best.toFixed(3) + ' cyc/mm vs ' + f0.toFixed(3) + ' predicted ('
+                  + ((best / f0 - 1) * 100).toFixed(1) + '% off)';
+  const st = document.getElementById('comb-status');
+  if (st) st.innerHTML = _combRefineNote;
 }
 
 // ── Failure envelope (Mohr-Coulomb) ───────────────────────────────────────
@@ -3319,6 +3581,12 @@ async function plotSelected() {
   const statsRows  = [];
   const failPoints = [];
 
+  const combOn     = document.getElementById('comb-chk')?.checked;
+  const combHarm   = Math.max(1, Math.min(12, parseInt(document.getElementById('comb-harmonics')?.value) || 6));
+  const combCycles = Math.max(2, Math.min(40, parseInt(document.getElementById('comb-cycles')?.value)   || 6));
+  const combShow   = document.getElementById('comb-show-removed')?.checked;
+  const combReports = [];
+
   const sampleH = Math.max(1, parseFloat(document.getElementById('sample-height')?.value) || 20);
 
   const hex2rgba = (hex, a) => {
@@ -3336,6 +3604,23 @@ async function plotSelected() {
     }
     let data = rawData.map(p => [p[0], p[1]]);
     if (!data.length) continue;
+
+    // Stepper ripple comes off first: alignment then sees a clean baseline, and
+    // the smoother is not asked to fight a coherent tone.
+    let combApplied = false;
+    if (combOn && data.length > 32) {
+      const f0 = combFundamental(entry.meta);
+      const xsArr = data.map(d => d[0]), ysArr = data.map(d => d[1]);
+      const { clean, removed } = combNotch(xsArr, ysArr, f0, combHarm, combCycles);
+      let sum = 0;
+      for (let i = 0; i < removed.length; i++) sum += removed[i] * removed[i];
+      combReports.push({ name, f0, rms: Math.sqrt(sum / removed.length) });
+      // the ripple rides along as a third channel so contact alignment shifts it
+      // by exactly the same amount as the trace it came from
+      data = data.map(([x], i) => [x, clean[i], removed[i]]);
+      combApplied = true;
+    }
+
     if (doAlign) {
       data = alignToContact(data, baselinePts, sigmaK, confirmPts);
       data = data.filter(([x]) => x >= -1);
@@ -3345,7 +3630,7 @@ async function plotSelected() {
     const doZeroForce = document.getElementById('zero-force-chk')?.checked;
     if (doZeroForce && data.length) {
       const forceOffset = data[0][1];
-      data = data.map(([x, y]) => [x, y - forceOffset]);
+      data = data.map(p => [p[0], p[1] - forceOffset, ...p.slice(2)]);
     }
 
     // Smoothed force, stress (kPa), and shear strain (dimensionless)
@@ -3391,6 +3676,13 @@ async function plotSelected() {
 
     // Chart 1: Force (N) vs Displacement (mm)
     if (forceChart) {
+      if (combShow && combApplied) forceChart.data.datasets.push({
+        label: `${name} (stepper ripple removed)`,
+        data: data.filter(p => p.length > 2).map(p => ({ x: p[0], y: p[2] })),
+        showLine: true, fill: false, pointRadius: 0, tension: 0,
+        borderColor: hex2rgba(color, 0.55), backgroundColor: 'transparent',
+        borderWidth: Math.max(0.5, lineWidth * 0.5), borderDash: [2, 3],
+      });
       if (rawDs) forceChart.data.datasets.push({
         ...rawDs, label: `${name} (raw)`,
         data: data.map(([x, y]) => ({ x, y })),
@@ -3420,6 +3712,17 @@ async function plotSelected() {
       data: [{ x: peakStrain, y: peakTau }],
       borderColor: color, backgroundColor: color, pointRadius: 4, pointStyle: 'circle', borderWidth: 1.5,
     });
+  }
+
+  const combStatus = document.getElementById('comb-status');
+  if (combStatus) {
+    combStatus.innerHTML = (_combRefineNote ? _combRefineNote + '<br/>' : '')
+      + (combReports.length
+          ? 'f₀ = ' + combReports[0].f0.toFixed(3) + ' cyc/mm ('
+            + (1 / combReports[0].f0).toFixed(4) + ' mm/cycle)<br/>'
+            + combReports.slice(0, 4).map(c => 'removed ' + c.rms.toFixed(4) + ' N rms — ' + escHtml(c.name)).join('<br/>')
+            + (combReports.length > 4 ? '<br/>…and ' + (combReports.length - 4) + ' more' : '')
+          : '');
   }
 
   if (forceChart) { forceChart.update(); forceChart.resetZoom(); }
@@ -3587,7 +3890,7 @@ function parseCSVData(text) {
 function alignToContact(data, baselinePts = 20, sigmaK = 3, confirmPts = 5) {
   if (data.length < baselinePts + confirmPts) {
     // Not enough data — just align to first point
-    return data.map(([x, y]) => [x - data[0][0], y]);
+    return data.map(p => [p[0] - data[0][0], ...p.slice(1)]);
   }
 
   // Build baseline from first `baselinePts` force values
@@ -3607,7 +3910,7 @@ function alignToContact(data, baselinePts = 20, sigmaK = 3, confirmPts = 5) {
         // Contact found at start of this run
         const contactIdx = i - confirmPts + 1;
         const xOffset    = data[contactIdx][0];
-        return data.map(([x, y]) => [x - xOffset, y]);
+        return data.map(p => [p[0] - xOffset, ...p.slice(1)]);
       }
     } else {
       run = 0;  // reset if we dip back below threshold
@@ -3615,7 +3918,7 @@ function alignToContact(data, baselinePts = 20, sigmaK = 3, confirmPts = 5) {
   }
 
   // Fallback: no clear contact found — align to first point
-  return data.map(([x, y]) => [x - data[0][0], y]);
+  return data.map(p => [p[0] - data[0][0], ...p.slice(1)]);
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
@@ -4594,6 +4897,7 @@ async function applyCalToFiles() {
 // ── Initialise on load ─────────────────────────────────────────────────────
 updateBoxArea();
 updateSmoothUI();
+updateCombUI();
 initForceChart();
 initFailureChart();
 initCalChart();
