@@ -6,6 +6,8 @@
 # Shear Speed: 1 mm/min
 # Operator: LT
 # Notes: started at 5.9mbar, sample prepped by luke
+# Density/Condition: 1.7
+# Metadata edited: 2026-09-08T01:36:34.000Z
 Displacement (mm),Shear Force (N)
 0.0015,0.0321
 0.0032,0.0301

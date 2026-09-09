@@ -6,6 +6,8 @@
 # Shear Speed: 1 mm/min
 # Operator: LT
 # Notes: degassed for 28 mins, started once below 6mbar, pressure continued to go down during test
+# Density/Condition: 1.5
+# Metadata edited: 2026-09-08T01:36:34.000Z
 Displacement (mm),Shear Force (N)
 0.0015,-0.0416
 0.0032,-0.0422

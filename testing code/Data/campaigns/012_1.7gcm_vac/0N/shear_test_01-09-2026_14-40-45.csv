@@ -5,6 +5,9 @@
 # Shear Speed: 1 mm/min
 # Operator: LT
 # Notes: 4.1mbar pressure pretty much the whole time
+# Density/Condition: 1.7
+# Normal Force: 0 N
+# Metadata edited: 2026-09-08T01:36:34.000Z
 Displacement (mm),Shear Force (N)
 0.0015,0.0525
 0.0031,0.0465

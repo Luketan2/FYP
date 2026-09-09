@@ -2,10 +2,12 @@
 # Saved: 2026-09-01T05:46:31.682Z
 # HX711 Gain: 128
 # Sand Type: LHS1_1.5gcm_1.41N_vac
-# Normal Force: 1.41 N
+# Normal Force: 1.4 N
 # Shear Speed: 1 mm/min
 # Operator: LT
 # Notes: pressure just under 6mbar, did not change much throughout the test
+# Density/Condition: 1.5
+# Metadata edited: 2026-09-08T01:36:34.000Z
 Displacement (mm),Shear Force (N)
 0.0015,0.0520
 0.0032,0.0278

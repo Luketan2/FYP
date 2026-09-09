@@ -3,6 +3,9 @@
 # HX711 Gain: 128
 # Sand Type: 1.7 0 N Vacuum T1
 # Shear Speed: 1 mm/min
+# Density/Condition: 1.7
+# Normal Force: 0 N
+# Metadata edited: 2026-09-08T01:36:34.000Z
 Displacement (mm),Shear Force (N)
 0.0015,0.0552
 0.0032,0.0572
